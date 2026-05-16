@@ -11,14 +11,32 @@ jobs:
       contents: read
       pages: write
       id-token: write
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
+
       - run: npm ci
+
       - run: npm run build
+        env:
+          VITE_CONFIG_SHEET_ID: ${{ secrets.VITE_CONFIG_SHEET_ID }}
+          VITE_CAS_SHEET_ID:    ${{ secrets.VITE_CAS_SHEET_ID }}
+          VITE_BRO_SHEET_ID:    ${{ secrets.VITE_BRO_SHEET_ID }}
+          VITE_GRA_SHEET_ID:    ${{ secrets.VITE_GRA_SHEET_ID }}
+          VITE_JAM_SHEET_ID:    ${{ secrets.VITE_JAM_SHEET_ID }}
+          VITE_MAR_SHEET_ID:    ${{ secrets.VITE_MAR_SHEET_ID }}
+          VITE_OCE_SHEET_ID:    ${{ secrets.VITE_OCE_SHEET_ID }}
+          VITE_WEB_SHEET_ID:    ${{ secrets.VITE_WEB_SHEET_ID }}
+          VITE_WHI_SHEET_ID:    ${{ secrets.VITE_WHI_SHEET_ID }}
+          VITE_JOBS_API_URL:    ${{ secrets.VITE_JOBS_API_URL }}
+
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
+
       - uses: actions/deploy-pages@v4

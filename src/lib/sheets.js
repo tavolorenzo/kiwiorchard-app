@@ -10,14 +10,14 @@
 // Estos valores vienen del .env (Vite los inyecta en build time)
 export const SHEET_IDS = {
   config: import.meta.env.VITE_CONFIG_SHEET_ID,
-  cas:    import.meta.env.VITE_CAS_SHEET_ID,
-  bro:    import.meta.env.VITE_BRO_SHEET_ID,
-  gra:    import.meta.env.VITE_GRA_SHEET_ID,
-  jam:    import.meta.env.VITE_JAM_SHEET_ID,
-  mar:    import.meta.env.VITE_MAR_SHEET_ID,
-  oce:    import.meta.env.VITE_OCE_SHEET_ID,
-  web:    import.meta.env.VITE_WEB_SHEET_ID,
-  whi:    import.meta.env.VITE_WHI_SHEET_ID,
+  cas: import.meta.env.VITE_CAS_SHEET_ID,
+  bro: import.meta.env.VITE_BRO_SHEET_ID,
+  gra: import.meta.env.VITE_GRA_SHEET_ID,
+  jam: import.meta.env.VITE_JAM_SHEET_ID,
+  mar: import.meta.env.VITE_MAR_SHEET_ID,
+  oce: import.meta.env.VITE_OCE_SHEET_ID,
+  web: import.meta.env.VITE_WEB_SHEET_ID,
+  whi: import.meta.env.VITE_WHI_SHEET_ID,
 };
 
 // URL del Apps Script Web App (para escritura)
@@ -86,9 +86,9 @@ export async function appendJob(jobData) {
   }
 
   const res = await fetch(JOBS_API_URL, {
-    method:  "POST",
-    headers: { "Content-Type": "application/json" },
-    body:    JSON.stringify({ action: "appendJob", payload: jobData }),
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify({ action: "appendJob", payload: jobData }),
   });
 
   if (!res.ok) throw new Error(`Error en Jobs API: ${res.status}`);

@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { Outlet, NavLink, useNavigate, useParams } from "react-router-dom";
-import { LayoutDashboard, ClipboardList, BarChart3, Menu, X } from "lucide-react";
+import { Outlet, NavLink, useNavigate, useParams, useLocation } from "react-router-dom";
+import { LayoutDashboard, ClipboardList, BarChart3, Menu, X, Settings } from "lucide-react";
 import { useSheets } from "../hooks/useSheets";
 
 const ORCHARDS = [
@@ -17,15 +17,29 @@ const ORCHARDS = [
 export { ORCHARDS };
 
 export default function Layout() {
-  const [open, setOpen] = useState(false);
-  const navigate = useNavigate();
-  const params   = useParams();
-  const activeOrchardId = params.orchardId ?? "cas";
+  const [open, setOpen]   = useState(false);
+  const navigate          = useNavigate();
+  const { orchardId }     = useParams();
+  const location          = useLocation();  // reactivo — se actualiza con cada navegación
 
   const { getBayRate, config } = useSheets();
 
+  // El orchard activo viene de la URL. Si no hay orchardId (ej: /all-orchards)
+  // buscamos cuál coincide con el pathname para mantener el highlight correcto.
+  const activeOrchardId = orchardId
+    ?? ORCHARDS.find(o => location.pathname.includes(o.id))?.id
+    ?? null;
+
+  const isAllOrchards = location.pathname.includes("all-orchards");
+
   function goTo(path) {
     navigate(path);
+    setOpen(false);
+  }
+
+  function handleOrchardClick(orchardId) {
+    // Navegar siempre a la vista de registro del orchard clickeado
+    navigate(`/register/${orchardId}`);
     setOpen(false);
   }
 
@@ -43,18 +57,19 @@ export default function Layout() {
         />
       )}
 
-      {/* Sidebar */}
-      <aside style={{
-        width: 220, flexShrink: 0,
-        background: "#fff",
-        borderRight: "1px solid #e5e7eb",
-        display: "flex", flexDirection: "column",
-        position: "fixed", top: 0, bottom: 0, left: 0,
-        overflowY: "auto", zIndex: 99,
-        transform: open ? "translateX(0)" : "translateX(-220px)",
-        transition: "transform .25s ease",
-      }}
-      className="sidebar-el"
+      {/* ── Sidebar ─────────────────────────────────────────── */}
+      <aside
+        className="sidebar-el"
+        style={{
+          width: 220, flexShrink: 0,
+          background: "#fff",
+          borderRight: "1px solid #e5e7eb",
+          display: "flex", flexDirection: "column",
+          position: "fixed", top: 0, bottom: 0, left: 0,
+          overflowY: "auto", zIndex: 99,
+          transform: open ? "translateX(0)" : "translateX(-220px)",
+          transition: "transform .25s ease",
+        }}
       >
         {/* Logo */}
         <div style={{
@@ -62,6 +77,7 @@ export default function Layout() {
           justifyContent: "space-between",
           padding: "16px 14px 14px",
           borderBottom: "1px solid #f3f4f6",
+          flexShrink: 0,
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{ fontSize: 20 }}>🌿</span>
@@ -72,43 +88,61 @@ export default function Layout() {
           <button
             onClick={() => setOpen(false)}
             style={{ background: "none", border: "none", cursor: "pointer",
-                     color: "#9ca3af", padding: 2 }}
+                     color: "#9ca3af", padding: 2, display: "flex" }}
           >
             <X size={16} />
           </button>
         </div>
 
-        {/* Global nav */}
-        <div style={{ padding: "10px 0 6px" }}>
+        {/* Vistas globales */}
+        <div style={{ padding: "10px 0 4px", flexShrink: 0 }}>
           <SectionTitle>Vistas</SectionTitle>
           <SideNavItem
             icon={<BarChart3 size={14} />}
             label="Todos los orchards"
-            active={window.location.pathname.includes("all-orchards")}
+            active={isAllOrchards}
             onClick={() => goTo("/all-orchards")}
+          />
+          <SideNavItem
+            icon={<Settings size={14} />}
+            label="Configuración"
+            active={location.pathname.includes("settings")}
+            onClick={() => goTo("/settings")}
           />
         </div>
 
-        {/* Orchards */}
-        <div style={{ padding: "6px 0", flex: 1 }}>
+        {/* Lista de orchards */}
+        <div style={{ padding: "4px 0", flex: 1 }}>
           <SectionTitle>Orchards</SectionTitle>
           {ORCHARDS.map(o => {
             const isActive = activeOrchardId === o.id;
-            const rate = config ? getBayRate(o.id) : 0;
             return (
               <div key={o.id}>
-                <div
+                {/* Fila del orchard — clickeable para navegar */}
+                <button
+                  onClick={() => handleOrchardClick(o.id)}
                   style={{
                     display: "flex", alignItems: "center",
-                    padding: "6px 14px",
+                    width: "100%",
+                    padding: "7px 14px",
                     background: isActive ? "#eff6ff" : "transparent",
                     borderLeft: isActive ? "2px solid #1d4ed8" : "2px solid transparent",
+                    border: "none",
+                    borderRight: "none",
+                    borderTop: "none",
+                    borderBottom: "none",
+                    borderLeftWidth: 2,
+                    borderLeftStyle: "solid",
+                    borderLeftColor: isActive ? "#1d4ed8" : "transparent",
+                    cursor: "pointer",
+                    textAlign: "left",
                   }}
                 >
                   <span style={{
-                    width: 6, height: 6, borderRadius: "50%",
+                    width: 7, height: 7, borderRadius: "50%",
                     background: isActive ? "#1d4ed8" : "#d1d5db",
-                    flexShrink: 0, marginRight: 8,
+                    flexShrink: 0, marginRight: 9,
+                    transition: "background .15s",
                   }} />
                   <span style={{
                     fontSize: 13, flex: 1,
@@ -117,9 +151,16 @@ export default function Layout() {
                   }}>
                     {o.name}
                   </span>
-                </div>
+                  {isActive && config && getBayRate(o.id) > 0 && (
+                    <span style={{ fontSize: 10, color: "#93c5fd" }}>
+                      ${getBayRate(o.id)}
+                    </span>
+                  )}
+                </button>
+
+                {/* Sub-navegación — solo visible para el orchard activo */}
                 {isActive && (
-                  <div style={{ paddingLeft: 22 }}>
+                  <div style={{ paddingLeft: 28, paddingBottom: 4 }}>
                     <SubNavItem
                       icon={<ClipboardList size={12} />}
                       label="Registrar"
@@ -145,16 +186,16 @@ export default function Layout() {
             padding: "10px 14px",
             borderTop: "1px solid #f3f4f6",
             fontSize: 11, color: "#9ca3af",
+            flexShrink: 0,
           }}>
             {config.orchards?.length ?? 0} orchards · {config.workers?.length ?? 0} workers
           </div>
         )}
       </aside>
 
-      {/* Main content */}
+      {/* ── Main ────────────────────────────────────────────── */}
       <div style={{
         flex: 1,
-        marginLeft: 0,
         display: "flex", flexDirection: "column",
         minWidth: 0,
       }}>
@@ -182,12 +223,13 @@ export default function Layout() {
           </span>
         </div>
 
-        {/* Page content */}
+        {/* Página activa */}
         <div style={{ flex: 1 }}>
           <Outlet />
         </div>
       </div>
 
+      {/* Sidebar siempre visible en desktop */}
       <style>{`
         @media (min-width: 900px) {
           .sidebar-el {
@@ -195,19 +237,20 @@ export default function Layout() {
             position: sticky !important;
             height: 100vh !important;
           }
-          .sidebar-el + div { margin-left: 0; }
         }
       `}</style>
     </div>
   );
 }
 
+// ── Sub-componentes ───────────────────────────────────────────
+
 function SectionTitle({ children }) {
   return (
     <div style={{
       fontSize: 10, fontWeight: 600, textTransform: "uppercase",
       letterSpacing: ".07em", color: "#9ca3af",
-      padding: "2px 14px 4px",
+      padding: "2px 14px 6px",
     }}>
       {children}
     </div>
@@ -222,14 +265,16 @@ function SideNavItem({ icon, label, active, onClick }) {
         display: "flex", alignItems: "center", gap: 8,
         width: "100%", padding: "7px 14px",
         background: active ? "#eff6ff" : "none",
-        border: "none", borderLeft: active ? "2px solid #1d4ed8" : "2px solid transparent",
+        border: "none",
+        borderLeft: `2px solid ${active ? "#1d4ed8" : "transparent"}`,
         cursor: "pointer", fontSize: 13,
         color: active ? "#1d4ed8" : "#374151",
         fontWeight: active ? 500 : 400,
         textAlign: "left",
       }}
     >
-      {icon}{label}
+      {icon}
+      {label}
     </button>
   );
 }
@@ -241,17 +286,18 @@ function SubNavItem({ icon, label, to, onClick }) {
       onClick={onClick}
       style={({ isActive }) => ({
         display: "flex", alignItems: "center", gap: 6,
-        padding: "5px 10px",
+        padding: "5px 8px",
         fontSize: 12,
         color: isActive ? "#1d4ed8" : "#6b7280",
         fontWeight: isActive ? 500 : 400,
         textDecoration: "none",
         borderRadius: 4,
         background: isActive ? "#dbeafe" : "transparent",
-        margin: "1px 6px 1px 0",
+        margin: "1px 4px 1px 0",
       })}
     >
-      {icon}{label}
+      {icon}
+      {label}
     </NavLink>
   );
 }

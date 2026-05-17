@@ -39,11 +39,11 @@ function fmtNum(n, decimals = 2) {
 // ── FORMULARIO ────────────────────────────────────────────────
 
 const EMPTY_FORM = {
-  date:    today(),
-  teamId:  "",
+  date: today(),
+  teamId: "",
   baysCSV: "",
-  hours:   "",
-  notes:   "",
+  hours: "",
+  notes: "",
 };
 
 export default function JobForm({
@@ -54,16 +54,16 @@ export default function JobForm({
   teams = [],
   onSuccess,
 }) {
-  const [form, setForm]       = useState(EMPTY_FORM);
-  const [errors, setErrors]   = useState({});
-  const [status, setStatus]   = useState("idle"); // idle | saving | success | error
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [errors, setErrors] = useState({});
+  const [status, setStatus] = useState("idle"); // idle | saving | success | error
   const [apiError, setApiError] = useState("");
 
   // ── Cálculos en tiempo real ──────────────────────────────
-  const totalBays  = useMemo(() => countBays(form.baysCSV),               [form.baysCSV]);
-  const totalM2    = useMemo(() => calcM2(form.baysCSV, bayMap),           [form.baysCSV, bayMap]);
-  const baysPerHr  = useMemo(() => calcBaysPerHr(totalBays, +form.hours),  [totalBays, form.hours]);
-  const cost       = useMemo(() => calcCost(totalBays, bayRate),           [totalBays, bayRate]);
+  const totalBays = useMemo(() => countBays(form.baysCSV), [form.baysCSV]);
+  const totalM2 = useMemo(() => calcM2(form.baysCSV, bayMap), [form.baysCSV, bayMap]);
+  const baysPerHr = useMemo(() => calcBaysPerHr(totalBays, +form.hours), [totalBays, form.hours]);
+  const cost = useMemo(() => calcCost(totalBays, bayRate), [totalBays, bayRate]);
 
   const selectedTeam = teams.find(t => t.team_id === form.teamId);
 
@@ -77,12 +77,12 @@ export default function JobForm({
   // ── Validación ───────────────────────────────────────────
   function validate() {
     const e = {};
-    if (!form.date)        e.date    = "La fecha es requerida";
-    if (!form.teamId)      e.teamId  = "Seleccioná un team";
-    if (!form.baysCSV)     e.baysCSV = "Ingresá al menos un bay";
+    if (!form.date) e.date = "La fecha es requerida";
+    if (!form.teamId) e.teamId = "Seleccioná un team";
+    if (!form.baysCSV) e.baysCSV = "Ingresá al menos un bay";
     if (!form.hours || +form.hours <= 0)
-                           e.hours   = "Las horas deben ser > 0";
-    if (totalBays === 0)   e.baysCSV = "Ningún bay reconocido en el MAP";
+      e.hours = "Las horas deben ser > 0";
+    if (totalBays === 0) e.baysCSV = "Ningún bay reconocido en el MAP";
     return e;
   }
 
@@ -96,20 +96,29 @@ export default function JobForm({
     setApiError("");
 
     try {
+      // Construir workers_snapshot con fallback seguro:
+      // 1. miembros del team si están cargados
+      // 2. nombre del team si no hay miembros
+      // 3. team_id como último recurso
+      const workersSnapshot =
+        (selectedTeam?.members && selectedTeam.members.trim())
+          ? selectedTeam.members.trim()
+          : (selectedTeam?.name ?? form.teamId ?? "Sin especificar");
+
       const payload = {
-        orchard_id:       orchardId,
-        date:             form.date,
-        team_id:          form.teamId,
-        team_name:        selectedTeam?.name ?? form.teamId,
-        workers_snapshot: selectedTeam?.members ?? "",
-        bays_csv:         form.baysCSV,
-        total_bays:       totalBays,
-        total_m2:         totalM2,
-        hours:            +form.hours,
-        bays_per_hr:      baysPerHr,
-        bay_rate:         bayRate,
-        cost:             cost,
-        notes:            form.notes,
+        orchard_id: orchardId,
+        date: form.date,
+        team_id: form.teamId,
+        team_name: selectedTeam?.name ?? form.teamId,
+        workers_snapshot: workersSnapshot,
+        bays_csv: form.baysCSV,
+        total_bays: totalBays,
+        total_m2: totalM2,
+        hours: +form.hours,
+        bays_per_hr: baysPerHr,
+        bay_rate: bayRate,
+        cost: cost,
+        notes: form.notes,
       };
 
       const result = await appendJob(payload);
@@ -236,10 +245,9 @@ export default function JobForm({
               </div>
               <div className="calc-card">
                 <div className="calc-label">Bays / hr</div>
-                <div className={`calc-value ${
-                  baysPerHr >= 2.5 ? "rate-high" :
-                  baysPerHr >= 1.5 ? "rate-mid"  : "rate-low"
-                }`}>
+                <div className={`calc-value ${baysPerHr >= 2.5 ? "rate-high" :
+                    baysPerHr >= 1.5 ? "rate-mid" : "rate-low"
+                  }`}>
                   {fmtNum(baysPerHr)}
                 </div>
               </div>
@@ -257,10 +265,9 @@ export default function JobForm({
                 </div>
                 <div className="rate-bar-track">
                   <div
-                    className={`rate-bar-fill ${
-                      baysPerHr >= 2.5 ? "rate-high" :
-                      baysPerHr >= 1.5 ? "rate-mid"  : "rate-low"
-                    }`}
+                    className={`rate-bar-fill ${baysPerHr >= 2.5 ? "rate-high" :
+                        baysPerHr >= 1.5 ? "rate-mid" : "rate-low"
+                      }`}
                     style={{ width: `${Math.min(baysPerHr / 3 * 100, 100)}%` }}
                   />
                   <div className="rate-markers">

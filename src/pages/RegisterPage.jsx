@@ -1,6 +1,6 @@
 /**
- * RegisterPage.jsx
- * Página de registro — usa orchardId desde la URL.
+ * RegisterPage.jsx v1.1
+ * Usa orchardId desde la URL y carga rowMap + blockMap + rowToBlock.
  */
 import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
@@ -11,10 +11,12 @@ import { ORCHARDS } from "../components/Layout";
 
 export default function RegisterPage() {
   const { orchardId } = useParams();
-  const { config, getBayMap, getBayRate, loading, error } = useSheets();
+  const { config, getBayRate, getOrchardMaps, loading, error } = useSheets();
   const { addJob } = useJobs(orchardId);
 
-  const [bayMap, setBayMap] = useState({});
+  const [rowMap, setRowMap] = useState({});
+  const [blockMap, setBlockMap] = useState({});
+  const [rowToBlock, setRowToBlock] = useState({});
   const [mapLoading, setMapLoading] = useState(false);
 
   const activeOrchard = ORCHARDS.find(o => o.id === orchardId);
@@ -22,7 +24,6 @@ export default function RegisterPage() {
   const teams = config
     ? config.teams.filter(t => t.active !== false).map(t => ({
       ...t,
-      // Filtramos worker_name válidos (no nulos ni vacíos)
       members: config.teamMembers
         .filter(m => m.team_id === t.team_id && m.worker_name)
         .map(m => String(m.worker_name).trim())
@@ -34,7 +35,13 @@ export default function RegisterPage() {
   useEffect(() => {
     if (!config) return;
     setMapLoading(true);
-    getBayMap(orchardId).then(setBayMap).finally(() => setMapLoading(false));
+    getOrchardMaps(orchardId)
+      .then(({ rowMap, blockMap, rowToBlock }) => {
+        setRowMap(rowMap);
+        setBlockMap(blockMap);
+        setRowToBlock(rowToBlock);
+      })
+      .finally(() => setMapLoading(false));
   }, [orchardId, config]);
 
   if (loading) return <Spinner text="Cargando configuración…" />;
@@ -57,7 +64,9 @@ export default function RegisterPage() {
         <JobForm
           orchardId={orchardId}
           orchardName={activeOrchard?.name ?? ""}
-          bayMap={bayMap}
+          rowMap={rowMap}
+          blockMap={blockMap}
+          rowToBlock={rowToBlock}
           bayRate={bayRate}
           teams={teams}
           onSuccess={addJob}
@@ -70,8 +79,8 @@ export default function RegisterPage() {
 function Spinner({ text }) {
   return (
     <div style={{
-      display: "flex", alignItems: "center", gap: 10, padding: 48,
-      color: "#6b7280", fontSize: 13
+      display: "flex", alignItems: "center", gap: 10,
+      padding: 48, color: "#6b7280", fontSize: 13
     }}>
       <div style={{
         width: 18, height: 18, border: "2px solid #e5e7eb",
@@ -86,8 +95,6 @@ function Spinner({ text }) {
 
 function ErrMsg({ msg }) {
   return (
-    <div style={{ padding: 24, color: "#991b1b", fontSize: 13 }}>
-      ⚠️ {msg}
-    </div>
+    <div style={{ padding: 24, color: "#991b1b", fontSize: 13 }}>⚠️ {msg}</div>
   );
 }

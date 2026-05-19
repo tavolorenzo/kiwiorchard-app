@@ -1,13 +1,15 @@
 /**
- * sheets.js
- * Utilidades para leer Google Sheets públicos via URL gviz
- * y escribir via el Apps Script Web App.
+ * sheets.js v1.1
+ * Lectura de Google Sheets públicos via gviz.
+ * Escritura via Apps Script Web App.
  *
- * Sin API Key, sin Google Cloud — solo URLs públicas + Apps Script.
+ * Cambios v1.1:
+ *   - buildRowMap() reemplaza buildBayMap()
+ *   - buildBlockMap() nuevo — expone prom_m2_per_bay por block
+ *   - buildRowToBlock() nuevo — lookup row_id → block_id
+ *   - appendJob() usa rows_json en lugar de bays_csv
  */
 
-// ── CONFIG ───────────────────────────────────────────────────
-// Estos valores vienen del .env (Vite los inyecta en build time)
 export const SHEET_IDS = {
   config: import.meta.env.VITE_CONFIG_SHEET_ID,
   cas: import.meta.env.VITE_CAS_SHEET_ID,
@@ -20,123 +22,148 @@ export const SHEET_IDS = {
   whi: import.meta.env.VITE_WHI_SHEET_ID,
 };
 
-// URL del Apps Script Web App (para escritura)
 export const JOBS_API_URL = import.meta.env.VITE_JOBS_API_URL;
 
+// ── LECTURA ──────────────────────────────────────────────────
 
-// ── LECTURA — URL pública gviz ───────────────────────────────
-
-/**
- * Lee un sheet público de Google Sheets.
- * @param {string} spreadsheetId  - ID del workbook
- * @param {string} sheetName      - Nombre del sheet (ej: "map", "workers")
- * @returns {Promise<Array>}      - Array de objetos con los datos
- */
 export async function readSheet(spreadsheetId, sheetName) {
+  if (!spreadsheetId) {
+    throw new Error(`Sheet ID no configurado para: "${sheetName}". Verificá el .env`);
+  }
+
   const url =
     `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq` +
     `?tqx=out:json&sheet=${encodeURIComponent(sheetName)}`;
 
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Error leyendo sheet "${sheetName}": ${res.status}`);
+  let res;
+  try {
+    res = await fetch(url);
+  } catch (err) {
+    throw new Error(
+      `No se pudo conectar a Google Sheets (${sheetName}). ` +
+      `Verificá que el sheet esté compartido como público (Viewer). ` +
+      `Error: ${err.message}`
+    );
+  }
+
+  if (!res.ok) {
+    throw new Error(
+      `Error HTTP ${res.status} leyendo "${sheetName}". ` +
+      `Verificá que el workbook esté compartido como "Anyone with the link → Viewer".`
+    );
+  }
 
   const text = await res.text();
 
-  // Google devuelve JSONP: google.visualization.Query.setResponse({...})
-  // Hay que extraer el JSON del medio
-  const json = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1));
+  if (!text.includes("google.visualization")) {
+    throw new Error(
+      `El sheet "${sheetName}" no está compartido como público. ` +
+      `Abrí el workbook en Drive → Share → "Anyone with the link" → Viewer.`
+    );
+  }
+
+  const json = JSON.parse(
+    text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1)
+  );
 
   return parseGvizTable(json.table);
 }
 
-/**
- * Convierte la tabla gviz en un array de objetos planos.
- * Las columnas se toman de la primera fila (headers).
- */
 function parseGvizTable(table) {
-  if (!table || !table.cols || !table.rows) return [];
-
-  // Extraer nombres de columna desde los headers del sheet
+  if (!table?.cols || !table?.rows) return [];
   const headers = table.cols.map(col => col.label || col.id);
-
   return table.rows
     .map(row =>
       Object.fromEntries(
-        headers.map((header, i) => {
-          const cell = row.c[i];
-          return [header, cell ? cell.v : null];
+        headers.map((h, i) => {
+          const cell = row.c?.[i];
+          return [h, cell?.v ?? null];
         })
       )
     )
-    // Filtrar filas completamente vacías
     .filter(row => Object.values(row).some(v => v !== null && v !== ""));
 }
 
 
-// ── ESCRITURA — Apps Script Web App ─────────────────────────
+// ── BUILDERS — construyen los mapas en memoria ────────────────
 
 /**
- * Appendea un job en el sheet "jobs" del orchard correspondiente.
- * @param {Object} jobData - Datos del job (ver schema en JobsAPI_WebApp.gs)
- * @returns {Promise<Object>} - { success, job_id, created_at }
+ * row_id → total_bays (cuántos bays hay en esa row).
+ * Construido desde el sheet "map" (v1.1: columnas row_id, block_id, total_bays).
+ *
+ * @param {Array} mapRows
+ * @returns {Object} { "S-1": 14.5, "N-SKIRT": 2, ... }
+ */
+export function buildRowMap(mapRows) {
+  console.debug("[buildRowMap] raw rows sample:", mapRows.slice(0, 3));
+  const map = Object.fromEntries(
+    mapRows
+      .filter(r => r.row_id)
+      .map(r => [r.row_id, Number(r.total_bays)])
+  );
+  console.debug("[buildRowMap] result sample:", Object.entries(map).slice(0, 3));
+  return map;
+}
+
+/**
+ * block_id → prom_m2_per_bay.
+ * Construido desde el sheet "blocks" (v1.1: columna prom_m2_per_bay).
+ *
+ * @param {Array} blockRows
+ * @returns {Object} { "cas-S": 13.4, "cas-N": 21.0, ... }
+ */
+export function buildBlockMap(blockRows) {
+  console.debug("[buildBlockMap] raw rows:", blockRows);
+  const map = Object.fromEntries(
+    blockRows
+      .filter(r => r.block_id)
+      .map(r => [r.block_id, Number(r.prom_m2_per_bay)])
+  );
+  console.debug("[buildBlockMap] result:", map);
+  return map;
+}
+
+/**
+ * row_id → block_id.
+ * Permite saber a qué block pertenece cada row para obtener prom_m2_per_bay.
+ *
+ * @param {Array} mapRows
+ * @returns {Object} { "S-1": "cas-S", "N-1": "cas-N", ... }
+ */
+export function buildRowToBlock(mapRows) {
+  console.debug("[buildRowToBlock] raw rows sample:", mapRows.slice(0, 3));
+  const map = Object.fromEntries(
+    mapRows
+      .filter(r => r.row_id && r.block_id)
+      .map(r => [r.row_id, r.block_id])
+  );
+  console.debug("[buildRowToBlock] result sample:", Object.entries(map).slice(0, 3));
+  return map;
+}
+
+
+// ── ESCRITURA — Apps Script Web App ──────────────────────────
+
+/**
+ * Appendea un job en el sheet "jobs" del orchard.
+ * v1.1: usa rows_json en lugar de bays_csv.
  */
 export async function appendJob(jobData) {
   if (!JOBS_API_URL) {
-    throw new Error("VITE_JOBS_API_URL no está configurado en .env");
+    throw new Error(
+      "VITE_JOBS_API_URL no está configurado en .env. " +
+      "Deployá el Apps Script como Web App y pegá la URL."
+    );
   }
 
   const res = await fetch(JOBS_API_URL, {
     method: "POST",
-    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ action: "appendJob", payload: jobData }),
   });
 
   if (!res.ok) throw new Error(`Error en Jobs API: ${res.status}`);
-
   const data = await res.json();
   if (data.error) throw new Error(data.error);
-
   return data;
-}
-
-
-// ── HELPERS ──────────────────────────────────────────────────
-
-/**
- * Construye el diccionario bay_id → m² desde el sheet "map".
- * @param {Array} mapRows - Filas del sheet map
- * @returns {Object} - { "S-1": 21, "N-SKIRT": 11, ... }
- */
-export function buildBayMap(mapRows) {
-  return Object.fromEntries(
-    mapRows
-      .filter(row => row.bay_id)
-      .map(row => [row.bay_id, Number(row.m2)])
-  );
-}
-
-/**
- * Calcula el m² total de una lista de bay_ids.
- * Replica la fórmula VLOOKUP+ARRAYFORMULA del Excel original.
- * @param {string} baysCsv  - "S-1,S-2,N-SKIRT-2"
- * @param {Object} bayMap   - Diccionario { bay_id: m2 }
- * @returns {number}
- */
-export function calcM2(baysCsv, bayMap) {
-  if (!baysCsv) return 0;
-  return baysCsv
-    .split(",")
-    .map(id => id.trim())
-    .filter(Boolean)
-    .reduce((sum, id) => sum + (bayMap[id] ?? 0), 0);
-}
-
-/**
- * Cuenta los bays en un CSV.
- * @param {string} baysCsv
- * @returns {number}
- */
-export function countBays(baysCsv) {
-  if (!baysCsv) return 0;
-  return baysCsv.split(",").map(s => s.trim()).filter(Boolean).length;
 }

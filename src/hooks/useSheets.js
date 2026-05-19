@@ -1,36 +1,35 @@
 /**
- * useSheets.js
- * Hook que carga CONFIG y MAP al iniciar la SPA.
- * Los datos quedan en memoria — no se vuelven a cargar
- * salvo que el usuario refresque la página.
- *
- * Uso:
- *   const { config, getBayMap, loading, error } = useSheets();
+ * useSheets.js v1.1
+ * Carga CONFIG, MAP y BLOCKS al iniciar la SPA.
+ * Expone rowMap, blockMap y rowToBlock para cada orchard.
  */
 
 import { useState, useEffect, useCallback } from "react";
-import { readSheet, buildBayMap, SHEET_IDS } from "../lib/sheets";
+import {
+  readSheet, SHEET_IDS,
+  buildRowMap, buildBlockMap, buildRowToBlock,
+} from "../lib/sheets";
 
-// Cache en módulo — persiste entre re-renders sin Context
 const cache = {
-  config:  null,   // { orchards, workers, teams, teamMembers }
-  bayMaps: {},     // { cas: { "S-1": 21, ... }, bro: {...}, ... }
+  config:      null,
+  rowMaps:     {},  // { orchardId: { row_id: total_bays } }
+  blockMaps:   {},  // { orchardId: { block_id: prom_m2_per_bay } }
+  rowToBlocks: {},  // { orchardId: { row_id: block_id } }
 };
 
 export function useSheets() {
-  const [loading, setLoading]   = useState(!cache.config);
-  const [error,   setError]     = useState(null);
-  const [config,  setConfig]    = useState(cache.config);
+  const [loading, setLoading] = useState(!cache.config);
+  const [error,   setError]   = useState(null);
+  const [config,  setConfig]  = useState(cache.config);
 
   useEffect(() => {
-    if (cache.config) return; // Ya cargado — no volver a fetchear
+    if (cache.config) return;
 
     async function loadConfig() {
       try {
         setLoading(true);
         setError(null);
 
-        // Cargar los 4 sheets de CONFIG en paralelo
         const [orchards, workers, teams, teamMembers] = await Promise.all([
           readSheet(SHEET_IDS.config, "orchards"),
           readSheet(SHEET_IDS.config, "workers"),
@@ -52,31 +51,42 @@ export function useSheets() {
   }, []);
 
   /**
-   * Carga el MAP de un orchard específico.
-   * Se llama cuando el usuario selecciona un orchard.
+   * Carga MAP y BLOCKS de un orchard.
+   * Retorna { rowMap, blockMap, rowToBlock }.
    * Resultado cacheado — segunda llamada es instantánea.
-   *
-   * @param {string} orchardId - "cas", "bro", "gra", etc.
-   * @returns {Promise<Object>} - { "S-1": 21, "N-SKIRT": 11, ... }
    */
-  const getBayMap = useCallback(async (orchardId) => {
-    // Devolver cache si ya existe
-    if (cache.bayMaps[orchardId]) return cache.bayMaps[orchardId];
+  const getOrchardMaps = useCallback(async (orchardId) => {
+    if (
+      cache.rowMaps[orchardId] &&
+      cache.blockMaps[orchardId] &&
+      cache.rowToBlocks[orchardId]
+    ) {
+      return {
+        rowMap:     cache.rowMaps[orchardId],
+        blockMap:   cache.blockMaps[orchardId],
+        rowToBlock: cache.rowToBlocks[orchardId],
+      };
+    }
 
     const sheetId = SHEET_IDS[orchardId];
     if (!sheetId) throw new Error(`Orchard desconocido: ${orchardId}`);
 
-    const rows = await readSheet(sheetId, "map");
-    const bayMap = buildBayMap(rows);
-    cache.bayMaps[orchardId] = bayMap;
-    return bayMap;
+    const [mapRows, blockRows] = await Promise.all([
+      readSheet(sheetId, "map"),
+      readSheet(sheetId, "blocks"),
+    ]);
+
+    const rowMap     = buildRowMap(mapRows);
+    const blockMap   = buildBlockMap(blockRows);
+    const rowToBlock = buildRowToBlock(mapRows);
+
+    cache.rowMaps[orchardId]     = rowMap;
+    cache.blockMaps[orchardId]   = blockMap;
+    cache.rowToBlocks[orchardId] = rowToBlock;
+
+    return { rowMap, blockMap, rowToBlock };
   }, []);
 
-  /**
-   * Devuelve los workers de un team en un momento dado.
-   * @param {string} teamId
-   * @returns {Array<Object>} - [{ worker_id, name, type, rate_per_hr }]
-   */
   const getTeamWorkers = useCallback((teamId) => {
     if (!config) return [];
     const memberIds = config.teamMembers
@@ -85,22 +95,17 @@ export function useSheets() {
     return config.workers.filter(w => memberIds.includes(w.worker_id));
   }, [config]);
 
-  /**
-   * Devuelve el bay_rate de un orchard.
-   * @param {string} orchardId
-   * @returns {number}
-   */
   const getBayRate = useCallback((orchardId) => {
     if (!config) return 0;
-    const orchard = config.orchards.find(o => o.orchard_id === orchardId);
-    return orchard ? Number(orchard.bay_rate) : 0;
+    const o = config.orchards.find(o => o.orchard_id === orchardId);
+    return o ? Number(o.bay_rate) : 0;
   }, [config]);
 
   return {
     config,
     loading,
     error,
-    getBayMap,
+    getOrchardMaps,
     getTeamWorkers,
     getBayRate,
   };

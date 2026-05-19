@@ -246,7 +246,7 @@ export default function JobForm({
               <div className="calc-card">
                 <div className="calc-label">Bays / hr</div>
                 <div className={`calc-value ${baysPerHr >= 2.5 ? "rate-high" :
-                    baysPerHr >= 1.5 ? "rate-mid" : "rate-low"
+                  baysPerHr >= 1.5 ? "rate-mid" : "rate-low"
                   }`}>
                   {fmtNum(baysPerHr)}
                 </div>
@@ -266,7 +266,7 @@ export default function JobForm({
                 <div className="rate-bar-track">
                   <div
                     className={`rate-bar-fill ${baysPerHr >= 2.5 ? "rate-high" :
-                        baysPerHr >= 1.5 ? "rate-mid" : "rate-low"
+                      baysPerHr >= 1.5 ? "rate-mid" : "rate-low"
                       }`}
                     style={{ width: `${Math.min(baysPerHr / 3 * 100, 100)}%` }}
                   />

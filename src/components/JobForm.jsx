@@ -11,7 +11,7 @@ import {
   calcM2FromDelta, countBays, calcBaysPerHr, calcCost,
   applyDelta, serializeRows,
 } from "../lib/calcM2";
-import { appendJob } from "../lib/sheets";
+import { appendJob } from "../lib/firebase";
 
 function today() {
   return new Date().toISOString().slice(0, 10);
@@ -24,27 +24,27 @@ function fmt$(n) {
 }
 
 const EMPTY_FORM = {
-  date: today(),
-  teamId: "",
-  hours: "",
-  notes: "",
+  date:    today(),
+  teamId:  "",
+  hours:   "",
+  notes:   "",
 };
 
 export default function JobForm({
   orchardId,
   orchardName,
-  rowMap = {},
-  blockMap = {},
+  rowMap     = {},
+  blockMap   = {},
   rowToBlock = {},
-  bayRate = 0,
-  teams = [],
+  bayRate    = 0,
+  teams      = [],
   onSuccess,
 }) {
-  const [form, setForm] = useState(EMPTY_FORM);
-  const [rowSel, setRowSel] = useState([]); // [{ row_id, bays_selected }]
-  const [errors, setErrors] = useState({});
-  const [status, setStatus] = useState("idle");
-  const [apiError, setApiError] = useState("");
+  const [form,       setForm]       = useState(EMPTY_FORM);
+  const [rowSel,     setRowSel]     = useState([]); // [{ row_id, bays_selected }]
+  const [errors,     setErrors]     = useState({});
+  const [status,     setStatus]     = useState("idle");
+  const [apiError,   setApiError]   = useState("");
 
   const selectedTeam = teams.find(t => t.team_id === form.teamId);
 
@@ -64,10 +64,10 @@ export default function JobForm({
   );
 
   // Cálculos en tiempo real sobre el DELTA
-  const totalBays = useMemo(() => countBays(deltaRows), [deltaRows]);
-  const totalM2 = useMemo(() => calcM2FromDelta(deltaRows, blockMap, rowToBlock), [deltaRows, blockMap, rowToBlock]);
-  const baysPerHr = useMemo(() => calcBaysPerHr(totalBays, +form.hours), [totalBays, form.hours]);
-  const cost = useMemo(() => calcCost(totalBays, bayRate), [totalBays, bayRate]);
+  const totalBays  = useMemo(() => countBays(deltaRows),                      [deltaRows]);
+  const totalM2    = useMemo(() => calcM2FromDelta(deltaRows, blockMap, rowToBlock), [deltaRows, blockMap, rowToBlock]);
+  const baysPerHr  = useMemo(() => calcBaysPerHr(totalBays, +form.hours),    [totalBays, form.hours]);
+  const cost       = useMemo(() => calcCost(totalBays, bayRate),              [totalBays, bayRate]);
 
   const set = (field) => (e) =>
     setForm(prev => ({ ...prev, [field]: e.target.value }));
@@ -80,10 +80,10 @@ export default function JobForm({
 
   function validate() {
     const e = {};
-    if (!form.date) e.date = "La fecha es requerida";
-    if (!form.teamId) e.teamId = "Seleccioná un team";
+    if (!form.date)                    e.date   = "La fecha es requerida";
+    if (!form.teamId)                  e.teamId = "Seleccioná un team";
     if (!form.hours || +form.hours <= 0) e.hours = "Las horas deben ser > 0";
-    if (deltaRows.length === 0) e.rows = "No hay trabajo nuevo registrado";
+    if (deltaRows.length === 0)        e.rows   = "No hay trabajo nuevo registrado";
     return e;
   }
 
@@ -102,21 +102,24 @@ export default function JobForm({
           : (selectedTeam?.name ?? form.teamId ?? "Sin especificar");
 
       const payload = {
-        orchard_id: orchardId,
-        date: form.date,
-        team_id: form.teamId,
-        team_name: selectedTeam?.name ?? form.teamId,
+        orchard_id:       orchardId,
+        date:             form.date,
+        team_id:          form.teamId,
+        team_name:        selectedTeam?.name ?? form.teamId,
         workers_snapshot: workersSnapshot,
-        rows_json: serializeRows(deltaRows),  // delta serializado
-        total_bays: totalBays,
-        total_m2: Math.round(totalM2 * 100) / 100,
-        hours: +form.hours,
-        bays_per_hr: baysPerHr,
-        bay_rate: bayRate,
-        cost: cost,
-        notes: form.notes,
+        rows_json:        serializeRows(deltaRows),  // delta serializado
+        total_bays:       totalBays,
+        total_m2:         Math.round(totalM2 * 100) / 100,
+        hours:            +form.hours,
+        bays_per_hr:      baysPerHr,
+        bay_rate:         bayRate,
+        cost:             cost,
+        notes:            form.notes,
       };
 
+      console.debug("[JobForm] payload a enviar:", payload);
+      console.debug("[JobForm] deltaRows:", deltaRows);
+      console.debug("[JobForm] rows_json value:", payload.rows_json);
       const result = await appendJob(payload);
 
       // Actualizar localStorage con los nuevos acumulados
@@ -247,9 +250,10 @@ export default function JobForm({
               </div>
               <div className="calc-card">
                 <div className="calc-label">Bays / hr</div>
-                <div className={`calc-value ${baysPerHr >= 2.5 ? "rate-high" :
-                    baysPerHr >= 1.5 ? "rate-mid" : "rate-low"
-                  }`}>
+                <div className={`calc-value ${
+                  baysPerHr >= 2.5 ? "rate-high" :
+                  baysPerHr >= 1.5 ? "rate-mid"  : "rate-low"
+                }`}>
                   {+form.hours > 0 ? baysPerHr.toFixed(2) : "—"}
                 </div>
               </div>
@@ -274,7 +278,7 @@ export default function JobForm({
                     transition: "width .3s",
                     width: `${Math.min(baysPerHr / 3 * 100, 100)}%`,
                     background: baysPerHr >= 2.5 ? "#16a34a"
-                      : baysPerHr >= 1.5 ? "#d97706" : "#dc2626",
+                              : baysPerHr >= 1.5 ? "#d97706" : "#dc2626",
                   }} />
                 </div>
               </div>

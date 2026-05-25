@@ -1,16 +1,20 @@
 /**
- * RowSelector.jsx v1.1
- * Reemplaza BaySelector. Cada row del orchard tiene un slider
- * con máximo = total_bays y mínimo = bays ya registrados (piso).
+ * RowSelector.jsx v1.1.2
+ *
+ * Tabs:
+ *   "Select by Bay"  → sliders por row, step 0.25, piso = ya registrado
+ *   "Select by Row"  → chips estilo BaySelector original, click = row completa
+ *
+ * Resumen persistente entre tabs para saber qué está seleccionado.
  *
  * Props:
- *   rowMap      {Object}  - { row_id: total_bays }
- *   blockMap    {Object}  - { block_id: prom_m2_per_bay }
- *   rowToBlock  {Object}  - { row_id: block_id }
- *   orchardId   {string}  - para leer/escribir localStorage
- *   date        {string}  - fecha del job (YYYY-MM-DD)
- *   value       {Array}   - [{ row_id, bays_selected }] estado actual
- *   onChange    {Function}- (newSelections) => void
+ *   rowMap      {Object}   - { row_id: total_bays }
+ *   blockMap    {Object}   - { block_id: prom_m2_per_bay }
+ *   rowToBlock  {Object}   - { row_id: block_id }
+ *   orchardId   {string}
+ *   date        {string}   - YYYY-MM-DD
+ *   value       {Array}    - [{ row_id, bays_selected }]
+ *   onChange    {Function} - (newSelections) => void
  */
 
 import { useState, useEffect, useMemo, useRef } from "react";
@@ -19,7 +23,6 @@ import { calcM2, countBays } from "../lib/calcM2";
 const STORAGE_KEY = (orchardId, date) =>
   `kiwi_preload_${orchardId}_${date}`;
 
-// Agrupa row_ids por block
 function groupByBlock(rowMap, rowToBlock) {
   const groups = {};
   for (const rowId of Object.keys(rowMap)) {
@@ -34,6 +37,19 @@ function isSkirt(rowId) {
   return rowId.toUpperCase().includes("SKIRT");
 }
 
+function GridIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none"
+      stroke="currentColor" strokeWidth="1.5"
+      strokeLinecap="round" strokeLinejoin="round">
+      <rect x="1" y="1" width="6" height="6" rx="1" />
+      <rect x="9" y="1" width="6" height="6" rx="1" />
+      <rect x="1" y="9" width="6" height="6" rx="1" />
+      <rect x="9" y="9" width="6" height="6" rx="1" />
+    </svg>
+  );
+}
+
 export default function RowSelector({
   rowMap = {},
   blockMap = {},
@@ -44,27 +60,19 @@ export default function RowSelector({
   onChange,
 }) {
   const [open, setOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState("list");
+  const [activeTab, setActiveTab] = useState("bay"); // "bay" | "row"
   const [search, setSearch] = useState("");
   const modalRef = useRef(null);
 
-  // Mapa de selecciones: { row_id: bays_selected }
-  const selMap = useMemo(() => {
-    return Object.fromEntries(value.map(r => [r.row_id, r.bays_selected]));
-  }, [value]);
-
-  // Piso de cada slider: bays ya registrados (desde localStorage)
-  const [preloaded, setPreloaded] = useState({}); // { row_id: bays }
+  // Piso de cada slider: bays ya registrados hoy
+  const [preloaded, setPreloaded] = useState({});
 
   useEffect(() => {
     if (!orchardId || !date) return;
-    const key = STORAGE_KEY(orchardId, date);
     try {
-      const raw = localStorage.getItem(key);
+      const raw = localStorage.getItem(STORAGE_KEY(orchardId, date));
       setPreloaded(raw ? JSON.parse(raw) : {});
-    } catch {
-      setPreloaded({});
-    }
+    } catch { setPreloaded({}); }
   }, [orchardId, date]);
 
   // Cerrar con Escape
@@ -79,78 +87,21 @@ export default function RowSelector({
   useEffect(() => {
     if (!open) return;
     const fn = (e) => {
-      if (modalRef.current && !modalRef.current.contains(e.target)) setOpen(false);
+      if (modalRef.current && !modalRef.current.contains(e.target))
+        setOpen(false);
     };
     setTimeout(() => window.addEventListener("mousedown", fn), 0);
     return () => window.removeEventListener("mousedown", fn);
   }, [open]);
 
-  const groups = useMemo(
-    () => groupByBlock(rowMap, rowToBlock),
-    [rowMap, rowToBlock]
+  // selMap: { row_id: bays_selected }
+  const selMap = useMemo(
+    () => Object.fromEntries(value.map(r => [r.row_id, r.bays_selected])),
+    [value]
   );
-  const blockIds = Object.keys(groups).sort();
 
-  // Actualizar un slider
-  function handleSlider(rowId, val) {
-    const floor = preloaded[rowId] ?? 0;
-    const clamped = Math.max(floor, Number(val));
-    const next = selMap[rowId] === clamped
-      ? value.filter(r => r.row_id !== rowId)   // sin cambio → quitar
-      : [
-        ...value.filter(r => r.row_id !== rowId),
-        { row_id: rowId, bays_selected: clamped },
-      ];
-    // Solo mantener rows con bays > piso
-    const filtered = next.filter(r => r.bays_selected > (preloaded[r.row_id] ?? 0) || (preloaded[r.row_id] ?? 0) > 0);
-    onChange?.(filtered.length ? filtered : next);
-  }
-
-  // Vista mapa: click en row → asume completa
-  function handleRowClick(rowId) {
-    const total = rowMap[rowId] ?? 0;
-    const floor = preloaded[rowId] ?? 0;
-    const current = selMap[rowId] ?? floor;
-    const next = current >= total
-      ? value.filter(r => r.row_id !== rowId)     // ya estaba completa → quitar
-      : [
-        ...value.filter(r => r.row_id !== rowId),
-        { row_id: rowId, bays_selected: total },
-      ];
-    onChange?.(next);
-  }
-
-  // Métricas en tiempo real (solo del delta)
-  const deltaSelections = useMemo(() => {
-    const result = value.map(r => ({
-      ...r,
-      bays_selected: Math.max(0, r.bays_selected - (preloaded[r.row_id] ?? 0)),
-    })).filter(r => r.bays_selected > 0);
-    console.debug("[RowSelector] deltaSelections:", result);
-    console.debug("[RowSelector] blockMap:", blockMap);
-    console.debug("[RowSelector] rowToBlock sample:", Object.entries(rowToBlock).slice(0, 3));
-    return result;
-  }, [value, preloaded, blockMap, rowToBlock]);
-
-  const totalDeltaBays = countBays(deltaSelections);
-  const totalDeltaM2 = calcM2(deltaSelections, blockMap, rowToBlock);
-  console.debug("[RowSelector] totalDeltaBays:", totalDeltaBays, "totalDeltaM2:", totalDeltaM2);
-
-  // Resumen para el campo de texto
-  const summaryText = useMemo(() => {
-    const parts = value
-      .filter(r => r.bays_selected > (preloaded[r.row_id] ?? 0))
-      .map(r => {
-        const delta = r.bays_selected - (preloaded[r.row_id] ?? 0);
-        return `${r.row_id} (+${delta})`;
-      });
-    return parts.join(", ");
-  }, [value, preloaded]);
-
-  const maxM2 = useMemo(
-    () => Math.max(...Object.values(rowMap), 1),
-    [rowMap]
-  );
+  const groups = useMemo(() => groupByBlock(rowMap, rowToBlock), [rowMap, rowToBlock]);
+  const blockIds = useMemo(() => Object.keys(groups).sort(), [groups]);
 
   const filteredGroups = useMemo(() => {
     if (!search) return groups;
@@ -163,9 +114,105 @@ export default function RowSelector({
     );
   }, [groups, search]);
 
+  // Delta selections (para métricas — solo trabajo nuevo)
+  const deltaSelections = useMemo(() =>
+    value
+      .map(r => ({
+        ...r,
+        bays_selected: Math.max(0, r.bays_selected - (preloaded[r.row_id] ?? 0)),
+      }))
+      .filter(r => r.bays_selected > 0),
+    [value, preloaded]
+  );
+
+  const totalDeltaBays = countBays(deltaSelections);
+  const totalDeltaM2 = calcM2(deltaSelections, blockMap, rowToBlock);
+
+  // ── Handlers ────────────────────────────────────────────────
+
+  // Slider: actualiza bays_selected de una row
+  function handleSlider(rowId, val) {
+    const floor = preloaded[rowId] ?? 0;
+    const clamped = Math.max(floor, Number(val));
+    const without = value.filter(r => r.row_id !== rowId);
+    // Si está en el piso (= sin trabajo nuevo) y no había preloaded, quitar
+    if (clamped === 0 && floor === 0) {
+      onChange?.(without);
+    } else {
+      onChange?.([...without, { row_id: rowId, bays_selected: clamped }]);
+    }
+  }
+
+  // Chip (Select by Row): click alterna entre completa y vacía
+  function handleChipClick(rowId) {
+    const total = rowMap[rowId] ?? 0;
+    const floor = preloaded[rowId] ?? 0;
+    const current = selMap[rowId] ?? floor;
+    const without = value.filter(r => r.row_id !== rowId);
+
+    if (current >= total) {
+      // Ya estaba completa → volver al piso
+      if (floor > 0) {
+        onChange?.([...without, { row_id: rowId, bays_selected: floor }]);
+      } else {
+        onChange?.(without);
+      }
+    } else {
+      // Marcar completa
+      onChange?.([...without, { row_id: rowId, bays_selected: total }]);
+    }
+  }
+
+  // Seleccionar / deseleccionar block completo (chips)
+  function handleSelectBlock(blockId) {
+    const ids = groups[blockId] ?? [];
+    const allSel = ids.every(id => (selMap[id] ?? 0) >= (rowMap[id] ?? 0));
+    const without = value.filter(r => !ids.includes(r.row_id));
+    if (allSel) {
+      // Deseleccionar → volver a pisos
+      const floors = ids
+        .filter(id => (preloaded[id] ?? 0) > 0)
+        .map(id => ({ row_id: id, bays_selected: preloaded[id] }));
+      onChange?.([...without, ...floors]);
+    } else {
+      // Seleccionar todo completo
+      const full = ids.map(id => ({ row_id: id, bays_selected: rowMap[id] ?? 0 }));
+      onChange?.([...without, ...full]);
+    }
+  }
+
+  function handleClear() {
+    // Volver todos al piso
+    const floors = Object.entries(preloaded)
+      .filter(([, v]) => v > 0)
+      .map(([row_id, bays_selected]) => ({ row_id, bays_selected }));
+    onChange?.(floors);
+  }
+
+  // ── Resumen de selección (persistente entre tabs) ────────────
+
+  const selectionSummary = useMemo(() => {
+    return value
+      .filter(r => r.bays_selected > (preloaded[r.row_id] ?? 0))
+      .map(r => {
+        const delta = r.bays_selected - (preloaded[r.row_id] ?? 0);
+        const total = rowMap[r.row_id] ?? 0;
+        const isComplete = r.bays_selected >= total;
+        return { row_id: r.row_id, delta, isComplete };
+      });
+  }, [value, preloaded, rowMap]);
+
+  // Label del campo exterior
+  const fieldLabel = useMemo(() => {
+    if (selectionSummary.length === 0) return "";
+    return selectionSummary
+      .map(r => r.isComplete ? r.row_id : `${r.row_id} (+${r.delta})`)
+      .join(", ");
+  }, [selectionSummary]);
+
   return (
     <div>
-      {/* Campo resumen (solo lectura) + botón */}
+      {/* ── Campo + botón ─────────────────────────────────── */}
       <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
         <div style={{
           flex: 1, fontSize: 12, padding: "7px 10px",
@@ -174,38 +221,27 @@ export default function RowSelector({
           fontFamily: "monospace", minHeight: 36,
           display: "flex", alignItems: "center",
         }}>
-          {summaryText || (
-            <span style={{ color: "#9ca3af" }}>Sin filas seleccionadas</span>
-          )}
+          {fieldLabel || <span style={{ color: "#9ca3af" }}>Sin filas seleccionadas</span>}
         </div>
         <button
           type="button"
           onClick={() => setOpen(true)}
           style={{
-            display: "flex", alignItems: "center", gap: 5,
+            display: "flex", alignItems: "center", gap: 6,
             fontSize: 12, fontWeight: 500, padding: "7px 12px",
             border: "1px solid #d1d5db", borderRadius: 6,
-            background: "#fff", color: "#374151", cursor: "pointer",
-            whiteSpace: "nowrap",
+            background: "#fff", color: "#374151",
+            cursor: "pointer", whiteSpace: "nowrap",
           }}
         >
-          <svg width="13" height="13" viewBox="0 0 16 16" fill="none"
-            stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-            <rect x="1" y="1" width="6" height="6" rx="1" />
-            <rect x="9" y="1" width="6" height="6" rx="1" />
-            <rect x="1" y="9" width="6" height="6" rx="1" />
-            <rect x="9" y="9" width="6" height="6" rx="1" />
-          </svg>
+          <GridIcon />
           Selector de filas
         </button>
       </div>
 
-      {/* Resumen delta */}
+      {/* Resumen debajo del campo */}
       {totalDeltaBays > 0 && (
-        <div style={{
-          marginTop: 4, fontSize: 12, color: "#6b7280",
-          display: "flex", gap: 6,
-        }}>
+        <div style={{ marginTop: 4, fontSize: 12, display: "flex", gap: 6 }}>
           <span style={{ fontWeight: 500, color: "#111827" }}>
             +{totalDeltaBays} bays nuevos
           </span>
@@ -216,7 +252,7 @@ export default function RowSelector({
         </div>
       )}
 
-      {/* Modal */}
+      {/* ── Modal ─────────────────────────────────────────── */}
       {open && (
         <div style={{
           position: "fixed", inset: 0,
@@ -228,11 +264,12 @@ export default function RowSelector({
         }}>
           <div ref={modalRef} style={{
             background: "#fff", borderRadius: 12,
-            width: "100%", maxWidth: 600,
+            width: "100%", maxWidth: 620,
             boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
             display: "flex", flexDirection: "column",
             overflow: "hidden", maxHeight: "85vh",
           }}>
+
             {/* Header */}
             <div style={{
               display: "flex", alignItems: "center",
@@ -243,13 +280,14 @@ export default function RowSelector({
               <span style={{ fontSize: 14, fontWeight: 600, color: "#111827" }}>
                 Seleccionar filas trabajadas
               </span>
-              <button
-                type="button" onClick={() => setOpen(false)}
+              <button type="button" onClick={() => setOpen(false)}
                 style={{
-                  background: "none", border: "none", cursor: "pointer",
-                  color: "#9ca3af", fontSize: 14, padding: "2px 6px"
-                }}
-              >✕</button>
+                  background: "none", border: "none",
+                  cursor: "pointer", color: "#9ca3af",
+                  fontSize: 14, padding: "2px 6px"
+                }}>
+                ✕
+              </button>
             </div>
 
             {/* Tabs */}
@@ -257,16 +295,19 @@ export default function RowSelector({
               display: "flex", padding: "0 16px",
               borderBottom: "1px solid #f3f4f6",
             }}>
-              {[["list", "Sliders"], ["map", "Vista mapa"]].map(([id, label]) => (
+              {[["bay", "Select by Bay"], ["row", "Select by Row"]].map(([id, label]) => (
                 <button key={id} type="button"
                   onClick={() => setActiveTab(id)}
                   style={{
-                    fontSize: 12, fontWeight: 500, padding: "9px 12px",
-                    border: "none", background: "none", cursor: "pointer",
+                    fontSize: 13, fontWeight: 500,
+                    padding: "10px 14px",
+                    border: "none", background: "none",
+                    cursor: "pointer",
                     color: activeTab === id ? "#111827" : "#6b7280",
                     borderBottom: activeTab === id
                       ? "2px solid #111827" : "2px solid transparent",
                     marginBottom: -1,
+                    transition: "color .15s",
                   }}
                 >
                   {label}
@@ -276,41 +317,76 @@ export default function RowSelector({
 
             {/* Búsqueda + leyenda */}
             <div style={{
-              padding: "8px 16px",
+              padding: "10px 16px 8px",
               borderBottom: "1px solid #f3f4f6",
+              display: "flex", flexDirection: "column", gap: 8,
             }}>
               <input
                 placeholder="Buscar fila… S-1, N-SKIRT"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 style={{
-                  width: "100%", fontSize: 12, padding: "6px 10px",
+                  width: "100%", fontSize: 13,
+                  padding: "7px 10px",
                   border: "1px solid #e5e7eb", borderRadius: 6,
-                  background: "#f9fafb", outline: "none",
+                  outline: "none", background: "#f9fafb",
                   boxSizing: "border-box",
                 }}
               />
-              {preloaded && Object.keys(preloaded).length > 0 && (
-                <p style={{ fontSize: 11, color: "#9ca3af", margin: "5px 0 0" }}>
-                  Los valores en gris son el mínimo ya registrado — el slider no puede bajar de ese punto.
-                </p>
-              )}
+              <div style={{ display: "flex", gap: 14 }}>
+                <LegendDot color="#e5e7eb" border="#d1d5db" label="Row normal" />
+                <LegendDot color="#fde68a" border="#d97706" label="Skirt" />
+                <LegendDot color="#1d4ed8" border="#1e40af" label="Seleccionado" />
+                {Object.keys(preloaded).length > 0 && (
+                  <LegendDot color="#e0f2fe" border="#0ea5e9" label="Registrado hoy" />
+                )}
+              </div>
             </div>
+
+            {/* ── Resumen de selección ─────────────────────── */}
+            {selectionSummary.length > 0 && (
+              <div style={{
+                padding: "8px 16px",
+                background: "#f0f9ff",
+                borderBottom: "1px solid #bae6fd",
+                display: "flex", flexWrap: "wrap", gap: 5,
+                alignItems: "center",
+              }}>
+                <span style={{
+                  fontSize: 10, fontWeight: 600,
+                  textTransform: "uppercase", letterSpacing: ".06em",
+                  color: "#0369a1", marginRight: 4,
+                }}>
+                  Seleccionado:
+                </span>
+                {selectionSummary.map(r => (
+                  <span key={r.row_id} style={{
+                    fontSize: 11, fontFamily: "monospace",
+                    padding: "2px 7px", borderRadius: 10,
+                    background: r.isComplete ? "#1d4ed8" : "#bfdbfe",
+                    color: r.isComplete ? "#fff" : "#1e40af",
+                    fontWeight: 500,
+                  }}>
+                    {r.isComplete ? r.row_id : `${r.row_id} +${r.delta}`}
+                  </span>
+                ))}
+              </div>
+            )}
 
             {/* Contenido */}
             <div style={{ flex: 1, overflowY: "auto", padding: "12px 16px" }}>
 
-              {/* ── Vista Sliders (List) ── */}
-              {activeTab === "list" && (
+              {/* ══ SELECT BY BAY — sliders ══ */}
+              {activeTab === "bay" && (
                 <div>
                   {Object.keys(filteredGroups).sort().map(blockId => (
                     <div key={blockId} style={{ marginBottom: 20 }}>
                       <div style={{
-                        fontSize: 10, fontWeight: 600,
+                        fontSize: 11, fontWeight: 600,
                         textTransform: "uppercase", letterSpacing: ".06em",
-                        color: "#9ca3af", marginBottom: 8,
+                        color: "#6b7280", marginBottom: 8,
                       }}>
-                        {blockId}
+                        Block {blockId}
                       </div>
                       {filteredGroups[blockId].map(rowId => {
                         const total = rowMap[rowId] ?? 0;
@@ -318,18 +394,19 @@ export default function RowSelector({
                         const current = selMap[rowId] ?? floor;
                         const delta = Math.max(0, current - floor);
                         const promM2 = blockMap[rowToBlock[rowId]] ?? 0;
-                        const deltaM2 = delta * promM2;
+                        const deltaM2 = Math.round(delta * promM2 * 10) / 10;
                         const sk = isSkirt(rowId);
+                        const hasPreload = floor > 0;
 
                         return (
                           <div key={rowId} style={{
                             display: "grid",
-                            gridTemplateColumns: "90px 1fr 60px",
+                            gridTemplateColumns: "100px 1fr 70px",
                             alignItems: "center", gap: 10,
-                            padding: "5px 0",
+                            padding: "6px 0",
                             borderBottom: "1px solid #f9fafb",
                           }}>
-                            {/* ID + badge skirt */}
+                            {/* ID */}
                             <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
                               <span style={{
                                 fontFamily: "monospace", fontSize: 11,
@@ -355,14 +432,18 @@ export default function RowSelector({
                                 step={0.25}
                                 value={current}
                                 onChange={e => handleSlider(rowId, e.target.value)}
-                                style={{ width: "100%", accentColor: sk ? "#d97706" : "#2563eb" }}
+                                style={{
+                                  width: "100%",
+                                  accentColor: sk ? "#d97706" : "#2563eb",
+                                }}
                               />
                               <div style={{
-                                display: "flex", justifyContent: "space-between",
+                                display: "flex",
+                                justifyContent: "space-between",
                                 fontSize: 10, color: "#9ca3af",
                               }}>
-                                <span style={{ color: floor > 0 ? "#6b7280" : "#d1d5db" }}>
-                                  {floor > 0 ? `mín: ${floor}` : "0"}
+                                <span style={{ color: hasPreload ? "#0ea5e9" : "#d1d5db" }}>
+                                  {hasPreload ? `mín: ${floor}` : "0"}
                                 </span>
                                 <span style={{
                                   color: delta > 0 ? "#2563eb" : "#9ca3af",
@@ -376,13 +457,10 @@ export default function RowSelector({
                             {/* m² delta */}
                             <div style={{
                               textAlign: "right", fontSize: 11,
-                              color: delta > 0 ? "#1d4ed8" : "#d1d5db",
+                              color: delta > 0 ? "#1d4ed8" : "#e5e7eb",
                               fontWeight: delta > 0 ? 500 : 400,
                             }}>
-                              {delta > 0
-                                ? `+${deltaM2.toFixed(1)} m²`
-                                : `—`
-                              }
+                              {delta > 0 ? `+${deltaM2} m²` : "—"}
                             </div>
                           </div>
                         );
@@ -392,97 +470,148 @@ export default function RowSelector({
                 </div>
               )}
 
-              {/* ── Vista Mapa ── */}
-              {activeTab === "map" && (
+              {/* ══ SELECT BY ROW — chips estilo BaySelector original ══ */}
+              {activeTab === "row" && (
                 <div>
-                  {blockIds.map(blockId => (
-                    <div key={blockId} style={{ marginBottom: 20 }}>
-                      <div style={{
-                        fontSize: 10, fontWeight: 600,
-                        textTransform: "uppercase", letterSpacing: ".06em",
-                        color: "#9ca3af", marginBottom: 6,
-                      }}>
-                        {blockId}
-                      </div>
-                      {(groups[blockId] ?? []).map(rowId => {
-                        const total = rowMap[rowId] ?? 0;
-                        const floor = preloaded[rowId] ?? 0;
-                        const sel = (selMap[rowId] ?? floor) >= total;
-                        const partial = (selMap[rowId] ?? floor) > floor &&
-                          (selMap[rowId] ?? floor) < total;
-                        const sk = isSkirt(rowId);
-                        const pct = Math.round((total / maxM2) * 100);
-
-                        let barColor = sk ? "#fcd34d" : "#93c5fd";
-                        if (sel) barColor = sk ? "#d97706" : "#2563eb";
-                        if (partial) barColor = sk ? "#f59e0b" : "#60a5fa";
-
-                        return (
-                          <div
-                            key={rowId}
-                            onClick={() => handleRowClick(rowId)}
+                  {Object.keys(filteredGroups).sort().map(blockId => {
+                    const ids = filteredGroups[blockId];
+                    const allSel = ids.every(id =>
+                      (selMap[id] ?? 0) >= (rowMap[id] ?? 0)
+                    );
+                    const someSel = ids.some(id =>
+                      (selMap[id] ?? 0) > (preloaded[id] ?? 0)
+                    );
+                    return (
+                      <div key={blockId} style={{ marginBottom: 16 }}>
+                        <div style={{
+                          display: "flex", alignItems: "center",
+                          justifyContent: "space-between", marginBottom: 6,
+                        }}>
+                          <span style={{
+                            fontSize: 11, fontWeight: 600,
+                            textTransform: "uppercase", letterSpacing: ".06em",
+                            color: "#6b7280",
+                          }}>
+                            Block {blockId}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleSelectBlock(blockId)}
                             style={{
-                              display: "flex", alignItems: "center",
-                              gap: 8, padding: "3px 6px",
-                              borderRadius: 4, cursor: "pointer",
-                              background: sel ? "#eff6ff" : partial ? "#f0f9ff" : "transparent",
+                              fontSize: 11, color: "#2563eb",
+                              background: "none", border: "none",
+                              cursor: "pointer", padding: "2px 0",
                             }}
                           >
-                            <span style={{
-                              fontFamily: "monospace", fontSize: 10,
-                              color: "#374151", width: 84, flexShrink: 0,
-                            }}>
-                              {rowId}
-                            </span>
-                            <div style={{
-                              flex: 1, height: 10,
-                              background: "#f3f4f6", borderRadius: 3,
-                              overflow: "hidden",
-                            }}>
-                              <div style={{
-                                height: "100%", width: `${pct}%`,
-                                background: barColor, borderRadius: 3,
-                                transition: "background .15s",
-                              }} />
-                            </div>
-                            <span style={{
-                              fontSize: 10, color: "#9ca3af",
-                              width: 30, textAlign: "right",
-                            }}>
-                              {total}
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ))}
+                            {allSel ? "Deseleccionar todo"
+                              : someSel ? "Completar block"
+                                : "Seleccionar todo"}
+                          </button>
+                        </div>
+
+                        {/* Chips */}
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+                          {ids.map(rowId => {
+                            const total = rowMap[rowId] ?? 0;
+                            const floor = preloaded[rowId] ?? 0;
+                            const current = selMap[rowId] ?? floor;
+                            const isNew = current > floor;
+                            const isFull = current >= total && total > 0;
+                            const sk = isSkirt(rowId);
+                            const hasFloor = floor > 0;
+
+                            // Clases visuales
+                            let bg = "#f9fafb";
+                            let border = "#e5e7eb";
+                            let color = "#374151";
+                            let fw = 400;
+
+                            if (hasFloor && !isNew) {
+                              // Ya registrado hoy — tono azul claro
+                              bg = "#e0f2fe"; border = "#7dd3fc"; color = "#0369a1";
+                            }
+                            if (sk && !isNew) {
+                              bg = "#fffbeb"; border = "#fcd34d"; color = "#92400e";
+                            }
+                            if (isNew && !sk) {
+                              bg = "#1d4ed8"; border = "#1e40af"; color = "#fff"; fw = 500;
+                            }
+                            if (isNew && sk) {
+                              bg = "#d97706"; border = "#b45309"; color = "#fff"; fw = 500;
+                            }
+
+                            return (
+                              <button
+                                key={rowId}
+                                type="button"
+                                onClick={() => handleChipClick(rowId)}
+                                title={`${total} bays totales · ${rowMap[rowId]} bays`}
+                                style={{
+                                  fontSize: 11, fontFamily: "monospace",
+                                  padding: "4px 8px", borderRadius: 5,
+                                  cursor: "pointer",
+                                  border: `1px solid ${border}`,
+                                  background: bg, color,
+                                  fontWeight: fw,
+                                  transition: "all .1s",
+                                  display: "flex", alignItems: "center", gap: 5,
+                                }}
+                              >
+                                {rowId}
+                                {isNew && (
+                                  <span style={{ fontSize: 10, opacity: .8 }}>
+                                    {isFull ? "✓" : `+${current - floor}`}
+                                  </span>
+                                )}
+                                {hasFloor && !isNew && (
+                                  <span style={{ fontSize: 10, opacity: .7 }}>
+                                    {floor}
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {Object.keys(filteredGroups).length === 0 && (
+                    <p style={{
+                      fontSize: 13, color: "#9ca3af",
+                      textAlign: "center", padding: "24px 0",
+                    }}>
+                      No se encontraron filas para "{search}"
+                    </p>
+                  )}
                 </div>
               )}
             </div>
 
             {/* Footer */}
             <div style={{
-              padding: "10px 16px",
+              padding: "12px 16px",
               borderTop: "1px solid #f3f4f6",
               background: "#fafafa",
               display: "flex", alignItems: "center",
               justifyContent: "space-between",
             }}>
-              <div style={{ fontSize: 12, color: "#6b7280" }}>
+              <div style={{ fontSize: 13, color: "#6b7280" }}>
                 <span style={{ fontWeight: 600, color: "#111827" }}>
                   +{totalDeltaBays}
-                </span> bays ·{" "}
+                </span>{" bays · "}
                 <span style={{ fontWeight: 600, color: "#1d4ed8" }}>
                   {totalDeltaM2.toFixed(1)} m²
                 </span>
-                {" "}nuevos
+                {" nuevos"}
               </div>
               <div style={{ display: "flex", gap: 8 }}>
                 <button
                   type="button"
-                  onClick={() => { onChange?.([]); }}
+                  onClick={handleClear}
                   style={{
-                    fontSize: 12, padding: "6px 12px",
+                    fontSize: 13, fontWeight: 500,
+                    padding: "7px 14px",
                     border: "1px solid #e5e7eb", borderRadius: 6,
                     background: "#fff", color: "#6b7280", cursor: "pointer",
                   }}
@@ -493,10 +622,10 @@ export default function RowSelector({
                   type="button"
                   onClick={() => setOpen(false)}
                   style={{
-                    fontSize: 12, padding: "6px 14px",
+                    fontSize: 13, fontWeight: 500,
+                    padding: "7px 16px",
                     border: "1px solid #1e40af", borderRadius: 6,
-                    background: "#1d4ed8", color: "#fff",
-                    cursor: "pointer", fontWeight: 500,
+                    background: "#1d4ed8", color: "#fff", cursor: "pointer",
                   }}
                 >
                   Confirmar
@@ -507,5 +636,20 @@ export default function RowSelector({
         </div>
       )}
     </div>
+  );
+}
+
+function LegendDot({ color, border, label }) {
+  return (
+    <span style={{
+      display: "flex", alignItems: "center", gap: 5,
+      fontSize: 11, color: "#6b7280"
+    }}>
+      <span style={{
+        width: 10, height: 10, borderRadius: 3, flexShrink: 0,
+        background: color, border: `1px solid ${border}`,
+      }} />
+      {label}
+    </span>
   );
 }

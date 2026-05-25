@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Outlet, NavLink, useNavigate, useParams, useLocation } from "react-router-dom";
 import { LayoutDashboard, ClipboardList, BarChart3, Menu, X, Settings } from "lucide-react";
-import { useSheets } from "../hooks/useSheets";
+import { useFirestore } from "../hooks/useFirestore";
+import { useAuth } from "../hooks/useAuth";
 
 const ORCHARDS = [
   { id: "cas", name: "Casuarina"    },
@@ -22,7 +23,8 @@ export default function Layout() {
   const { orchardId }     = useParams();
   const location          = useLocation();  // reactivo — se actualiza con cada navegación
 
-  const { getBayRate, config } = useSheets();
+  const { getBayRate, config } = useFirestore();
+  const { user, admin, logout } = useAuth();
 
   // El orchard activo viene de la URL. Si no hay orchardId (ej: /all-orchards)
   // buscamos cuál coincide con el pathname para mantener el highlight correcto.
@@ -181,16 +183,48 @@ export default function Layout() {
         </div>
 
         {/* Footer */}
-        {config && (
-          <div style={{
-            padding: "10px 14px",
-            borderTop: "1px solid #f3f4f6",
-            fontSize: 11, color: "#9ca3af",
-            flexShrink: 0,
-          }}>
-            {config.orchards?.length ?? 0} orchards · {config.workers?.length ?? 0} workers
-          </div>
-        )}
+        <div style={{
+          padding: "10px 14px",
+          borderTop: "1px solid #f3f4f6",
+          flexShrink: 0,
+        }}>
+          {config && (
+            <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 8 }}>
+              {config.orchards?.length ?? 0} orchards · {config.workers?.length ?? 0} workers
+              {admin && (
+                <span style={{
+                  marginLeft: 6, fontSize: 9, padding: "1px 5px",
+                  background: "#fef3c7", color: "#92400e",
+                  borderRadius: 3, fontWeight: 600,
+                }}>ADMIN</span>
+              )}
+            </div>
+          )}
+          {user && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              {user.photoURL && (
+                <img src={user.photoURL} alt="" style={{
+                  width: 22, height: 22, borderRadius: "50%",
+                }} />
+              )}
+              <span style={{
+                fontSize: 11, color: "#374151",
+                flex: 1, overflow: "hidden",
+                textOverflow: "ellipsis", whiteSpace: "nowrap",
+              }}>
+                {user.displayName ?? user.email}
+              </span>
+              <button onClick={logout} style={{
+                fontSize: 10, padding: "2px 7px",
+                border: "1px solid #e5e7eb", borderRadius: 4,
+                background: "#fff", color: "#6b7280",
+                cursor: "pointer", flexShrink: 0,
+              }}>
+                Salir
+              </button>
+            </div>
+          )}
+        </div>
       </aside>
 
       {/* ── Main ────────────────────────────────────────────── */}

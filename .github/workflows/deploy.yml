@@ -24,16 +24,13 @@ jobs:
 
       - run: npm run build
         env:
-          VITE_CONFIG_SHEET_ID: ${{ secrets.VITE_CONFIG_SHEET_ID }}
-          VITE_CAS_SHEET_ID:    ${{ secrets.VITE_CAS_SHEET_ID }}
-          VITE_BRO_SHEET_ID:    ${{ secrets.VITE_BRO_SHEET_ID }}
-          VITE_GRA_SHEET_ID:    ${{ secrets.VITE_GRA_SHEET_ID }}
-          VITE_JAM_SHEET_ID:    ${{ secrets.VITE_JAM_SHEET_ID }}
-          VITE_MAR_SHEET_ID:    ${{ secrets.VITE_MAR_SHEET_ID }}
-          VITE_OCE_SHEET_ID:    ${{ secrets.VITE_OCE_SHEET_ID }}
-          VITE_WEB_SHEET_ID:    ${{ secrets.VITE_WEB_SHEET_ID }}
-          VITE_WHI_SHEET_ID:    ${{ secrets.VITE_WHI_SHEET_ID }}
-          VITE_JOBS_API_URL:    ${{ secrets.VITE_JOBS_API_URL }}
+          VITE_FIREBASE_API_KEY:            ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN:        ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID:         ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET:     ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID:             ${{ secrets.VITE_FIREBASE_APP_ID }}
+          VITE_ADMIN_EMAIL:                 ${{ secrets.VITE_ADMIN_EMAIL }}
 
       - uses: actions/upload-pages-artifact@v3
         with:

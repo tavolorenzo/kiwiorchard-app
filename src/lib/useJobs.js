@@ -1,9 +1,10 @@
 /**
- * useJobs.js
- * Carga y cachea los jobs de un orchard desde el sheet "jobs".
+ * useJobs.js — Firebase version
+ * Carga y cachea los jobs de un orchard desde Firestore.
  */
-import { useState, useEffect } from "react";
-import { readSheet, SHEET_IDS } from "./sheets";
+
+import { useState, useEffect, useCallback } from "react";
+import { fetchJobs } from "./firebase";
 
 const cache = {};
 
@@ -17,20 +18,16 @@ export function useJobs(orchardId) {
     if (cache[orchardId]) { setJobs(cache[orchardId]); setLoading(false); return; }
 
     setLoading(true);
-    const sheetId = SHEET_IDS[orchardId];
-    if (!sheetId) { setError("Sheet ID no configurado para: " + orchardId); setLoading(false); return; }
-
-    readSheet(sheetId, "jobs")
+    fetchJobs(orchardId)
       .then(rows => {
-        // Normalizar tipos numéricos
         const parsed = rows.map(r => ({
           ...r,
           total_bays:  Number(r.total_bays  ?? 0),
           total_m2:    Number(r.total_m2    ?? 0),
           hours:       Number(r.hours       ?? 0),
           bays_per_hr: Number(r.bays_per_hr ?? 0),
-          bay_rate:    Number(r.bay_rate     ?? 0),
-          cost:        Number(r.cost         ?? 0),
+          bay_rate:    Number(r.bay_rate    ?? 0),
+          cost:        Number(r.cost        ?? 0),
         }));
         cache[orchardId] = parsed;
         setJobs(parsed);
@@ -39,12 +36,18 @@ export function useJobs(orchardId) {
       .finally(() => setLoading(false));
   }, [orchardId]);
 
-  // Permite agregar un job localmente sin re-fetch
-  function addJob(job) {
+  // Agrega un job localmente sin re-fetch
+  const addJob = useCallback((job) => {
     const next = [job, ...(cache[orchardId] ?? [])];
     cache[orchardId] = next;
     setJobs(next);
-  }
+  }, [orchardId]);
 
-  return { jobs, loading, error, addJob };
+  // Invalida cache (fuerza re-fetch)
+  const invalidate = useCallback(() => {
+    delete cache[orchardId];
+    setLoading(true);
+  }, [orchardId]);
+
+  return { jobs, loading, error, addJob, invalidate };
 }

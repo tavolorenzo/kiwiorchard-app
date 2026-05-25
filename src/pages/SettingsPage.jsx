@@ -7,11 +7,12 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
-import { useSheets } from "../hooks/useSheets";
 import {
-  getWorkers, saveWorker, toggleWorker,
-  getTeams,   saveTeam,   toggleTeam, saveTeamMembers,
-} from "../lib/configApi";
+  fetchWorkers, saveWorker, toggleWorker,
+  fetchTeams, saveTeam, toggleTeam, saveTeamMembers,
+  fetchTeamMembers,
+} from "../lib/firebase";
+import { useAuth } from "../hooks/useAuth";
 
 // ── Constantes ────────────────────────────────────────────────
 const WORKER_TYPES = ["RSE", "Contractor"];
@@ -41,7 +42,7 @@ export default function SettingsPage() {
       }}>
         {[
           { id: "workers", label: "Workers" },
-          { id: "teams",   label: "Teams"   },
+          { id: "teams", label: "Teams" },
         ].map(t => (
           <button
             key={t.id}
@@ -60,7 +61,7 @@ export default function SettingsPage() {
       </div>
 
       {tab === "workers" && <WorkersSection />}
-      {tab === "teams"   && <TeamsSection />}
+      {tab === "teams" && <TeamsSection />}
     </div>
   );
 }
@@ -71,12 +72,12 @@ export default function SettingsPage() {
 // ══════════════════════════════════════════════════════════════
 
 function WorkersSection() {
-  const [workers, setWorkers]     = useState([]);
-  const [loading, setLoading]     = useState(true);
-  const [saving,  setSaving]      = useState(false);
-  const [error,   setError]       = useState("");
+  const [workers, setWorkers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
   const [editingId, setEditingId] = useState(null); // worker_id en edición
-  const [showForm, setShowForm]   = useState(false);
+  const [showForm, setShowForm] = useState(false);
 
   const EMPTY = { name: "", type: "RSE", rate_per_hr: "" };
   const [form, setForm] = useState(EMPTY);
@@ -85,8 +86,9 @@ function WorkersSection() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await getWorkers();
-      setWorkers(res.data ?? []);
+      const res = await fetchWorkers();
+      if (!res) return;
+      setWorkers(Array.isArray(res) ? res : (res.data ?? []));
     } catch (e) {
       setError(e.message);
     } finally {
@@ -112,10 +114,10 @@ function WorkersSection() {
 
   function validateForm() {
     const e = {};
-    if (!form.name.trim())       e.name        = "El nombre es requerido";
-    if (!form.type)              e.type        = "Seleccioná un tipo";
+    if (!form.name.trim()) e.name = "El nombre es requerido";
+    if (!form.type) e.type = "Seleccioná un tipo";
     if (!form.rate_per_hr || isNaN(+form.rate_per_hr) || +form.rate_per_hr < 0)
-                                 e.rate_per_hr = "Ingresá una tarifa válida (≥ 0)";
+      e.rate_per_hr = "Ingresá una tarifa válida (≥ 0)";
     return e;
   }
 
@@ -127,9 +129,9 @@ function WorkersSection() {
     setSaving(true);
     try {
       await saveWorker({
-        worker_id:   editingId ?? undefined,
-        name:        form.name.trim(),
-        type:        form.type,
+        worker_id: editingId ?? undefined,
+        name: form.name.trim(),
+        type: form.type,
         rate_per_hr: +form.rate_per_hr,
       });
       setShowForm(false);
@@ -155,8 +157,10 @@ function WorkersSection() {
   return (
     <div>
       {/* Header de sección */}
-      <div style={{ display: "flex", justifyContent: "space-between",
-                    alignItems: "center", marginBottom: 16 }}>
+      <div style={{
+        display: "flex", justifyContent: "space-between",
+        alignItems: "center", marginBottom: 16
+      }}>
         <span style={{ fontSize: 14, fontWeight: 500, color: "#111827" }}>
           Workers ({workers.filter(w => w.active !== false).length} activos)
         </span>
@@ -170,12 +174,16 @@ function WorkersSection() {
       {/* Formulario inline */}
       {showForm && (
         <div style={card}>
-          <div style={{ fontSize: 13, fontWeight: 500, color: "#111827",
-                        marginBottom: 14 }}>
+          <div style={{
+            fontSize: 13, fontWeight: 500, color: "#111827",
+            marginBottom: 14
+          }}>
             {editingId ? "Editar worker" : "Nuevo worker"}
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 140px 160px",
-                        gap: 12, alignItems: "start" }}>
+          <div style={{
+            display: "grid", gridTemplateColumns: "1fr 140px 160px",
+            gap: 12, alignItems: "start"
+          }}>
             <Field label="Nombre *" error={formErrors.name}>
               <input
                 style={input(formErrors.name)}
@@ -196,9 +204,11 @@ function WorkersSection() {
             </Field>
             <Field label="Tarifa / hr *" error={formErrors.rate_per_hr}>
               <div style={{ position: "relative" }}>
-                <span style={{ position: "absolute", left: 10, top: "50%",
-                               transform: "translateY(-50%)", color: "#9ca3af",
-                               fontSize: 12 }}>$</span>
+                <span style={{
+                  position: "absolute", left: 10, top: "50%",
+                  transform: "translateY(-50%)", color: "#9ca3af",
+                  fontSize: 12
+                }}>$</span>
                 <input
                   style={{ ...input(formErrors.rate_per_hr), paddingLeft: 22 }}
                   type="number"
@@ -227,8 +237,10 @@ function WorkersSection() {
         <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
           <WorkerTableHeader />
           {workers.length === 0 && (
-            <div style={{ padding: "24px 0", textAlign: "center",
-                          color: "#9ca3af", fontSize: 13 }}>
+            <div style={{
+              padding: "24px 0", textAlign: "center",
+              color: "#9ca3af", fontSize: 13
+            }}>
               No hay workers. Agregá uno con el botón de arriba.
             </div>
           )}
@@ -311,25 +323,25 @@ function WorkerRow({ worker: w, onEdit, onToggle }) {
 // ══════════════════════════════════════════════════════════════
 
 function TeamsSection() {
-  const [teams,   setTeams]   = useState([]);
+  const [teams, setTeams] = useState([]);
   const [workers, setWorkers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [saving,  setSaving]  = useState(false);
-  const [error,   setError]   = useState("");
-  const [editingTeam, setEditingTeam]   = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [editingTeam, setEditingTeam] = useState(null);
   const [showTeamForm, setShowTeamForm] = useState(false);
-  const [teamName, setTeamName]         = useState("");
+  const [teamName, setTeamName] = useState("");
   const [teamNameError, setTeamNameError] = useState("");
   // Para editar miembros
-  const [memberTeam, setMemberTeam]     = useState(null);
+  const [memberTeam, setMemberTeam] = useState(null);
   const [selectedWorkers, setSelectedWorkers] = useState([]);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [tr, wr] = await Promise.all([getTeams(), getWorkers()]);
-      setTeams(tr.data ?? []);
-      setWorkers(wr.data ?? []);
+      const [tr, wr, mr] = await Promise.all([fetchTeams(), fetchWorkers(), fetchTeamMembers()]);
+      setTeams(Array.isArray(tr) ? tr : (tr.data ?? []));
+      setWorkers(Array.isArray(wr) ? wr : (wr.data ?? []));
     } catch (e) {
       setError(e.message);
     } finally {
@@ -414,8 +426,10 @@ function TeamsSection() {
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between",
-                    alignItems: "center", marginBottom: 16 }}>
+      <div style={{
+        display: "flex", justifyContent: "space-between",
+        alignItems: "center", marginBottom: 16
+      }}>
         <span style={{ fontSize: 14, fontWeight: 500, color: "#111827" }}>
           Teams ({teams.filter(t => t.active !== false).length} activos)
         </span>
@@ -507,8 +521,10 @@ function TeamsSection() {
       {loading ? <Spinner /> : (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {teams.length === 0 && (
-            <div style={{ padding: "24px 0", textAlign: "center",
-                          color: "#9ca3af", fontSize: 13 }}>
+            <div style={{
+              padding: "24px 0", textAlign: "center",
+              color: "#9ca3af", fontSize: 13
+            }}>
               No hay teams. Agregá uno con el botón de arriba.
             </div>
           )}
@@ -520,8 +536,10 @@ function TeamsSection() {
                 opacity: isActive ? 1 : 0.55,
                 marginBottom: 0,
               }}>
-                <div style={{ display: "flex", alignItems: "flex-start",
-                              justifyContent: "space-between", gap: 12 }}>
+                <div style={{
+                  display: "flex", alignItems: "flex-start",
+                  justifyContent: "space-between", gap: 12
+                }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
                       <span style={{ fontSize: 14, fontWeight: 500, color: "#111827" }}>
@@ -552,8 +570,8 @@ function TeamsSection() {
                     </div>
                   </div>
                   <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                    <button onClick={() => openEdit(t)}       style={btnXS}>Editar</button>
-                    <button onClick={() => openMembers(t)}    style={btnXS}>Miembros</button>
+                    <button onClick={() => openEdit(t)} style={btnXS}>Editar</button>
+                    <button onClick={() => openMembers(t)} style={btnXS}>Miembros</button>
                     <button onClick={() => handleToggleTeam(t)} style={btnXS}>
                       {isActive ? "Desactivar" : "Activar"}
                     </button>
@@ -600,7 +618,7 @@ function Banner({ type, msg, onClose }) {
     <div style={{
       padding: "10px 14px", borderRadius: 8, marginBottom: 16,
       background: type === "error" ? "#fef2f2" : "#f0fdf4",
-      color:      type === "error" ? "#991b1b" : "#166534",
+      color: type === "error" ? "#991b1b" : "#166534",
       border: `1px solid ${type === "error" ? "#fecaca" : "#bbf7d0"}`,
       fontSize: 13, display: "flex", justifyContent: "space-between",
       alignItems: "center",
@@ -616,11 +634,15 @@ function Banner({ type, msg, onClose }) {
 
 function Spinner() {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10,
-                  padding: "32px 0", color: "#6b7280", fontSize: 13 }}>
-      <div style={{ width: 16, height: 16, border: "2px solid #e5e7eb",
-                    borderTopColor: "#2563eb", borderRadius: "50%",
-                    animation: "spin .7s linear infinite" }} />
+    <div style={{
+      display: "flex", alignItems: "center", gap: 10,
+      padding: "32px 0", color: "#6b7280", fontSize: 13
+    }}>
+      <div style={{
+        width: 16, height: 16, border: "2px solid #e5e7eb",
+        borderTopColor: "#2563eb", borderRadius: "50%",
+        animation: "spin .7s linear infinite"
+      }} />
       Cargando…
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>

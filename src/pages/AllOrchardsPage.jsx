@@ -8,8 +8,8 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Cell,
 } from "recharts";
-import { readSheet, SHEET_IDS } from "../lib/sheets";
-import { useSheets } from "../hooks/useSheets";
+import { fetchJobs } from "../lib/firebase";
+import { useFirestore } from "../hooks/useFirestore";
 import { ORCHARDS }  from "../components/Layout";
 
 const BAR_COLORS = [
@@ -25,7 +25,7 @@ function fmt$(n) {
 
 export default function AllOrchardsPage() {
   const navigate = useNavigate();
-  const { config, getBayRate } = useSheets();
+  const { config, getBayRate } = useFirestore();
   const [data,    setData]    = useState([]);
   const [loading, setLoading] = useState(true);
   const [sortBy,  setSortBy]  = useState("totalBays");
@@ -35,9 +35,7 @@ export default function AllOrchardsPage() {
       const results = await Promise.all(
         ORCHARDS.map(async (o) => {
           try {
-            const sheetId = SHEET_IDS[o.id];
-            if (!sheetId) return { ...o, totalBays: 0, totalCost: 0, avgBaysHr: 0, days: 0, jobs: 0 };
-            const rows = await readSheet(sheetId, "jobs");
+            const rows = await fetchJobs(o.id);
             const totalBays  = rows.reduce((s, r) => s + Number(r.total_bays ?? 0), 0);
             const totalCost  = rows.reduce((s, r) => s + Number(r.cost        ?? 0), 0);
             const totalHours = rows.reduce((s, r) => s + Number(r.hours       ?? 0), 0);

@@ -1,0 +1,55 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper: usuario autenticado
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    // Helper: usuario es admin
+    function isAdmin() {
+      return isAuth() &&
+        request.auth.token.email == "tavolorenzo1@gmail.com";
+    }
+
+    // ── Orchards (config de cada orchard) ────────────────────
+    // Todos los autenticados pueden leer
+    // Solo admin puede escribir
+    match /orchards/{orchardId} {
+      allow read:  if isAuth();
+      allow write: if isAdmin();
+
+      // MAP — todos leen, solo admin escribe
+      match /map/{rowId} {
+        allow read:  if isAuth();
+        allow write: if isAdmin();
+      }
+
+      // BLOCKS — todos leen, solo admin escribe
+      match /blocks/{blockId} {
+        allow read:  if isAuth();
+        allow write: if isAdmin();
+      }
+
+      // JOBS — todos leen y crean, solo admin edita/borra
+      match /jobs/{jobId} {
+        allow read:   if isAuth();
+        allow create: if isAuth();
+        allow update,
+              delete: if isAdmin();
+      }
+    }
+
+    // ── CONFIG global ─────────────────────────────────────────
+    // Workers, teams, team_members
+    // Todos leen, solo admin escribe
+    match /config/{document=**} {
+      allow read:  if isAuth();
+      allow create: if isAuth();
+      allow update: if isAuth();
+      allow delete: if isAdmin();
+    }
+  }
+}

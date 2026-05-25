@@ -8,7 +8,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Cell, LineChart, Line, Legend,
 } from "recharts";
-import { useSheets } from "../hooks/useSheets";
+import { useFirestore } from "../hooks/useFirestore";
 import { useJobs }   from "../lib/useJobs";
 import { ORCHARDS }  from "../components/Layout";
 
@@ -29,7 +29,7 @@ function fmt$(n) {
 
 export default function DashboardPage() {
   const { orchardId } = useParams();
-  const { config, getBayRate } = useSheets();
+  const { config, getBayRate } = useFirestore();
   const { jobs, loading, error } = useJobs(orchardId);
 
   const orchard  = ORCHARDS.find(o => o.id === orchardId);

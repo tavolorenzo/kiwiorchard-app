@@ -182,3 +182,40 @@ export async function saveTeamMembers(team_id, members) {
         )
     ));
 }
+
+
+// ── TASKS — CRUD ─────────────────────────────────────────────
+
+/** Lee todas las tasks de un orchard */
+export async function fetchTasks(orchardId) {
+    const snap = await getDocs(
+        collection(db, `orchards/${orchardId}/tasks`)
+    );
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+/** Crea una task nueva en un orchard */
+export async function createTask(orchardId, taskData) {
+    const colRef = collection(db, `orchards/${orchardId}/tasks`);
+    const docRef = await addDoc(colRef, {
+        ...taskData,
+        orchard_id: orchardId,
+        created_at: serverTimestamp(),
+        updated_at: serverTimestamp(),
+    });
+    return { id: docRef.id };
+}
+
+/** Actualiza campos de una task (ej. cambiar status, nota) */
+export async function updateTask(orchardId, taskId, updates) {
+    const ref = doc(db, `orchards/${orchardId}/tasks/${taskId}`);
+    await updateDoc(ref, {
+        ...updates,
+        updated_at: serverTimestamp(),
+    });
+}
+
+/** Elimina una task (solo admin — enforced por Firestore rules) */
+export async function deleteTask(orchardId, taskId) {
+    await deleteDoc(doc(db, `orchards/${orchardId}/tasks/${taskId}`));
+}

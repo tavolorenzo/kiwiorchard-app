@@ -1,27 +1,28 @@
 import { useState } from "react";
 import { Outlet, NavLink, useNavigate, useParams, useLocation } from "react-router-dom";
-import { LayoutDashboard, ClipboardList, BarChart3, Menu, X, Settings } from "lucide-react";
+import { LayoutDashboard, ClipboardList, BarChart3, Map, CheckSquare, Menu, X, Settings } from "lucide-react";
 import { useFirestore } from "../hooks/useFirestore";
 import { useAuth } from "../hooks/useAuth";
 
 const ORCHARDS = [
-  { id: "cas", name: "Casuarina"    },
+  { id: "cas", name: "Casuarina" },
   { id: "bro", name: "Brown Rabbit" },
-  { id: "gra", name: "Grasshopper"  },
-  { id: "jam", name: "JAM"          },
-  { id: "mar", name: "Marshall"     },
-  { id: "oce", name: "Oceanview"    },
-  { id: "web", name: "Webb"         },
-  { id: "whi", name: "White House"  },
+  { id: "gra", name: "Grasshopper" },
+  { id: "jam", name: "JAM" },
+  { id: "mar", name: "Marshall" },
+  { id: "oce", name: "Oceanview" },
+  { id: "web", name: "Webb" },
+  { id: "whi", name: "White House" },
 ];
 
 export { ORCHARDS };
 
 export default function Layout() {
-  const [open, setOpen]   = useState(false);
-  const navigate          = useNavigate();
-  const { orchardId }     = useParams();
-  const location          = useLocation();  // reactivo — se actualiza con cada navegación
+
+  const [open, setOpen] = useState(false);
+  const navigate = useNavigate();
+  const { orchardId } = useParams();
+  const location = useLocation();  // reactivo — se actualiza con cada navegación
 
   const { getBayRate, config } = useFirestore();
   const { user, admin, logout } = useAuth();
@@ -89,8 +90,10 @@ export default function Layout() {
           </div>
           <button
             onClick={() => setOpen(false)}
-            style={{ background: "none", border: "none", cursor: "pointer",
-                     color: "#9ca3af", padding: 2, display: "flex" }}
+            style={{
+              background: "none", border: "none", cursor: "pointer",
+              color: "#9ca3af", padding: 2, display: "flex"
+            }}
           >
             <X size={16} />
           </button>
@@ -175,6 +178,18 @@ export default function Layout() {
                       to={`/dashboard/${o.id}`}
                       onClick={() => setOpen(false)}
                     />
+                    <SubNavItem
+                      icon={<Map size={12} />}
+                      label="Mapa"
+                      to={`/map/${o.id}`}
+                      onClick={() => setOpen(false)}
+                    />
+                    <SubNavItem
+                      icon={<CheckSquare size={12} />}
+                      label="Tasks"
+                      to={`/tasks/${o.id}`}
+                      onClick={() => setOpen(false)}
+                    />
                   </div>
                 )}
               </div>
@@ -243,6 +258,7 @@ export default function Layout() {
         }}>
           <button
             onClick={() => setOpen(true)}
+            className="menu-toggle-btn"
             style={{
               background: "none", border: "1px solid #e5e7eb",
               borderRadius: 6, padding: "5px 8px",
@@ -263,13 +279,16 @@ export default function Layout() {
         </div>
       </div>
 
-      {/* Sidebar siempre visible en desktop */}
+      {/* Sidebar siempre visible en desktop y ocultar botón de menú */}
       <style>{`
-        @media (min-width: 900px) {
+        @media (min-width: 768px) {
           .sidebar-el {
             transform: translateX(0) !important;
             position: sticky !important;
             height: 100vh !important;
+          }
+          .menu-toggle-btn {
+            display: none !important;
           }
         }
       `}</style>

@@ -5,6 +5,8 @@ import RegisterPage from "./pages/RegisterPage";
 import DashboardPage from "./pages/DashboardPage";
 import AllOrchardsPage from "./pages/AllOrchardsPage";
 import SettingsPage from "./pages/SettingsPage";
+import TaskDashboardPage from "./pages/TaskDashboardPage";
+import MapPage from "./pages/MapPage";
 
 export default function App() {
   return (
@@ -16,7 +18,9 @@ export default function App() {
             <Route path="register/:orchardId" element={<RegisterPage />} />
             <Route path="dashboard/:orchardId" element={<DashboardPage />} />
             <Route path="all-orchards" element={<AllOrchardsPage />} />
+            <Route path="tasks/:orchardId" element={<TaskDashboardPage />} />
             <Route path="settings" element={<SettingsPage />} />
+            <Route path="map/:orchardId" element={<MapPage />} />
           </Route>
         </Routes>
       </AuthGuard>

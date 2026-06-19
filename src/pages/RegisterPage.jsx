@@ -12,7 +12,7 @@ import { ORCHARDS }   from "../components/Layout";
 export default function RegisterPage() {
   const { orchardId }  = useParams();
   const { config, getBayRate, getOrchardMaps, loading, error } = useFirestore();
-  const { addJob }     = useJobs(orchardId);
+  const { jobs, addJob } = useJobs(orchardId);
 
   const [rowMap,     setRowMap]     = useState({});
   const [blockMap,   setBlockMap]   = useState({});
@@ -70,6 +70,7 @@ export default function RegisterPage() {
           bayRate={bayRate}
           teams={teams}
           onSuccess={addJob}
+          jobs={jobs}
         />
       )}
     </div>

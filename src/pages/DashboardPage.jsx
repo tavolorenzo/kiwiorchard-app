@@ -2,7 +2,7 @@
  * DashboardPage.jsx
  * Dashboard por orchard — KPIs, gráfico diario, tabla de jobs.
  */
-import { useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -11,6 +11,7 @@ import {
 import { useFirestore } from "../hooks/useFirestore";
 import { useJobs }   from "../lib/useJobs";
 import { ORCHARDS }  from "../components/Layout";
+import JobForm from "../components/JobForm";
 
 const COLORS = {
   "t-vai":  "#2563eb",
@@ -29,11 +30,48 @@ function fmt$(n) {
 
 export default function DashboardPage() {
   const { orchardId } = useParams();
-  const { config, getBayRate } = useFirestore();
-  const { jobs, loading, error } = useJobs(orchardId);
+  const { config, getBayRate, getOrchardMaps } = useFirestore();
+  const { jobs, loading, error, updateJobState, deleteJob } = useJobs(orchardId);
+
+  const [rowMap,     setRowMap]     = useState({});
+  const [blockMap,   setBlockMap]   = useState({});
+  const [rowToBlock, setRowToBlock] = useState({});
+  const [editingJob, setEditingJob] = useState(null);
 
   const orchard  = ORCHARDS.find(o => o.id === orchardId);
   const bayRate  = config ? getBayRate(orchardId) : 0;
+
+  const teams = config
+    ? config.teams.filter(t => t.active !== false).map(t => ({
+        ...t,
+        members: config.teamMembers
+          .filter(m => m.team_id === t.team_id && m.worker_name)
+          .map(m => String(m.worker_name).trim())
+          .filter(Boolean)
+          .join(", "),
+      }))
+    : [];
+
+  useEffect(() => {
+    if (!config || !orchardId) return;
+    getOrchardMaps(orchardId)
+      .then(({ rowMap, blockMap, rowToBlock }) => {
+        setRowMap(rowMap);
+        setBlockMap(blockMap);
+        setRowToBlock(rowToBlock);
+      })
+      .catch(console.error);
+  }, [orchardId, config, getOrchardMaps]);
+
+  const handleDelete = async (job) => {
+    if (window.confirm(`¿Seguro que deseas eliminar el registro de trabajo del ${job.date} para ${job.team_name}?`)) {
+      try {
+        await deleteJob(job.job_id);
+      } catch (err) {
+        alert("Error al eliminar: " + err.message);
+      }
+    }
+  };
 
   // ── Métricas globales ────────────────────────────────────
   const kpis = useMemo(() => {
@@ -173,9 +211,9 @@ export default function DashboardPage() {
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
                 <thead>
                   <tr style={{ background: "#f9fafb" }}>
-                    {["Fecha","Team","Bays","m²","Hrs","Bays/hr","Costo","Notas"].map(h => (
+                    {["Fecha","Team","Bays","m²","Hrs","Bays/hr","Costo","Notas","Acciones"].map(h => (
                       <th key={h} style={{
-                        padding: "8px 12px", textAlign: "left",
+                        padding: "8px 12px", textAlign: h === "Acciones" ? "right" : "left",
                         fontSize: 11, fontWeight: 500, color: "#6b7280",
                         borderBottom: "1px solid #e5e7eb", whiteSpace: "nowrap",
                       }}>{h}</th>
@@ -217,12 +255,96 @@ export default function DashboardPage() {
                                    whiteSpace: "nowrap" }}>
                         {j.notes ?? "—"}
                       </td>
+                      <td style={{ ...td, textAlign: "right", whiteSpace: "nowrap" }}>
+                        <button
+                          onClick={() => setEditingJob(j)}
+                          style={{
+                            background: "none", border: "none", color: "#2563eb",
+                            cursor: "pointer", marginRight: 8, fontSize: 11, fontWeight: 500
+                          }}
+                        >
+                          Editar
+                        </button>
+                        <button
+                          onClick={() => handleDelete(j)}
+                          style={{
+                            background: "none", border: "none", color: "#dc2626",
+                            cursor: "pointer", fontSize: 11, fontWeight: 500
+                          }}
+                        >
+                          Eliminar
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           </div>
+
+          {/* Modal para Editar Job */}
+          {editingJob && (
+            <div style={{
+              position: "fixed", inset: 0,
+              background: "rgba(0,0,0,0.5)",
+              backdropFilter: "blur(4px)",
+              display: "flex", alignItems: "center",
+              justifyContent: "center", zIndex: 999,
+              padding: 16,
+            }}>
+              <div style={{
+                background: "#fff",
+                borderRadius: 12,
+                width: "100%",
+                maxWidth: 600,
+                maxHeight: "90vh",
+                overflow: "hidden",
+                boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)",
+                display: "flex",
+                flexDirection: "column",
+              }}>
+                <div style={{
+                  padding: "16px 20px",
+                  borderBottom: "1px solid #e5e7eb",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}>
+                  <span style={{ fontWeight: 600, fontSize: 15, color: "#111827" }}>
+                    Editar Registro de Trabajo
+                  </span>
+                  <button
+                    onClick={() => setEditingJob(null)}
+                    style={{
+                      background: "none", border: "none",
+                      cursor: "pointer", color: "#9ca3af",
+                      fontSize: 16, padding: "4px 8px"
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div style={{ overflowY: "auto", padding: 20 }}>
+                  <JobForm
+                    key={editingJob.job_id}
+                    orchardId={orchardId}
+                    orchardName={orchard?.name ?? ""}
+                    rowMap={rowMap}
+                    blockMap={blockMap}
+                    rowToBlock={rowToBlock}
+                    bayRate={bayRate}
+                    teams={teams}
+                    onSuccess={(updatedJob) => {
+                      updateJobState(editingJob.job_id, updatedJob);
+                      setEditingJob(null);
+                    }}
+                    editingJob={editingJob}
+                    jobs={jobs}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>

@@ -127,6 +127,27 @@ export async function appendJob(jobData) {
     return { success: true, job_id };
 }
 
+/**
+ * Actualiza un job existente en Firestore.
+ */
+export async function updateJob(orchardId, jobId, jobData) {
+    const ref = doc(db, `orchards/${orchardId}/jobs/${jobId}`);
+    const { id, created_at, ...updates } = jobData;
+    await updateDoc(ref, {
+        ...updates,
+        updated_at: serverTimestamp(),
+    });
+    return { success: true };
+}
+
+/**
+ * Elimina un job de Firestore.
+ */
+export async function deleteJob(orchardId, jobId) {
+    await deleteDoc(doc(db, `orchards/${orchardId}/jobs/${jobId}`));
+    return { success: true };
+}
+
 
 // ── CONFIG — escritura (admin only) ──────────────────────────
 

@@ -9,9 +9,9 @@ import { useState, useMemo } from "react";
 import RowSelector from "./RowSelector";
 import {
   calcM2FromDelta, countBays, calcBaysPerHr, calcCost,
-  applyDelta, serializeRows,
+  applyDelta, serializeRows, deserializeRows,
 } from "../lib/calcM2";
-import { appendJob } from "../lib/firebase";
+import { appendJob, updateJob } from "../lib/firebase";
 
 function today() {
   return new Date().toISOString().slice(0, 10);
@@ -39,23 +39,74 @@ export default function JobForm({
   bayRate    = 0,
   teams      = [],
   onSuccess,
+  editingJob = null,
+  jobs       = [],
 }) {
-  const [form,       setForm]       = useState(EMPTY_FORM);
-  const [rowSel,     setRowSel]     = useState([]); // [{ row_id, bays_selected }]
+  // Helper to compute initial preloaded map for state initialization
+  const initialPreloaded = useMemo(() => {
+    if (!orchardId || !editingJob || !jobs.length) return {};
+    const map = {};
+    jobs.forEach(j => {
+      if (j.date === editingJob.date && j.job_id !== editingJob.job_id) {
+        const rows = deserializeRows(j.rows_json);
+        rows.forEach(({ row_id, bays }) => {
+          map[row_id] = (map[row_id] ?? 0) + bays;
+        });
+      }
+    });
+    return map;
+  }, [orchardId, editingJob, jobs]);
+
+  const [form, setForm] = useState(() => {
+    if (editingJob) {
+      return {
+        date: editingJob.date,
+        teamId: editingJob.team_id,
+        hours: String(editingJob.hours),
+        notes: editingJob.notes ?? "",
+      };
+    }
+    return EMPTY_FORM;
+  });
+
+  const [rowSel, setRowSel] = useState(() => {
+    if (editingJob) {
+      const editingDeltas = deserializeRows(editingJob.rows_json);
+      return editingDeltas.map(({ row_id, bays }) => {
+        const floor = initialPreloaded[row_id] ?? 0;
+        return { row_id, bays_selected: floor + bays };
+      });
+    }
+    return [];
+  });
+
   const [errors,     setErrors]     = useState({});
   const [status,     setStatus]     = useState("idle");
   const [apiError,   setApiError]   = useState("");
 
   const selectedTeam = teams.find(t => t.team_id === form.teamId);
 
-  // Pre-cargados desde localStorage (para calcular delta)
+  // Pre-cargados (para calcular delta)
   const preloaded = useMemo(() => {
     if (!orchardId || !form.date) return {};
+    if (jobs.length) {
+      const map = {};
+      jobs.forEach(j => {
+        if (j.date === form.date && j.job_id !== editingJob?.job_id) {
+          const rows = deserializeRows(j.rows_json);
+          rows.forEach(({ row_id, bays }) => {
+            map[row_id] = (map[row_id] ?? 0) + bays;
+          });
+        }
+      });
+      return map;
+    }
+    // Fallback localstorage si no hay lista de jobs
     try {
       const raw = localStorage.getItem(`kiwi_preload_${orchardId}_${form.date}`);
       return raw ? JSON.parse(raw) : {};
     } catch { return {}; }
-  }, [orchardId, form.date]);
+  }, [orchardId, form.date, jobs, editingJob]);
 
   // Delta: solo las rows con trabajo nuevo
   const deltaRows = useMemo(
@@ -120,22 +171,18 @@ export default function JobForm({
       console.debug("[JobForm] payload a enviar:", payload);
       console.debug("[JobForm] deltaRows:", deltaRows);
       console.debug("[JobForm] rows_json value:", payload.rows_json);
-      const result = await appendJob(payload);
-
-      // Actualizar localStorage con los nuevos acumulados
-      const newPreloaded = { ...preloaded };
-      deltaRows.forEach(({ row_id, bays_delta }) => {
-        newPreloaded[row_id] = (newPreloaded[row_id] ?? 0) + bays_delta;
-      });
-      localStorage.setItem(
-        `kiwi_preload_${orchardId}_${form.date}`,
-        JSON.stringify(newPreloaded)
-      );
+      
+      let result;
+      if (editingJob) {
+        result = await updateJob(orchardId, editingJob.job_id, payload);
+      } else {
+        result = await appendJob(payload);
+      }
 
       setStatus("success");
       setForm(EMPTY_FORM);
       setRowSel([]);
-      onSuccess?.({ ...payload, job_id: result.job_id });
+      onSuccess?.({ ...payload, job_id: editingJob ? editingJob.job_id : result.job_id });
       setTimeout(() => setStatus("idle"), 3000);
     } catch (err) {
       setStatus("error");
@@ -156,7 +203,7 @@ export default function JobForm({
 
       <div className="jf-header">
         <div className="jf-orchard">{orchardName}</div>
-        <div className="jf-title">Registrar trabajo</div>
+        <div className="jf-title">{editingJob ? `Editar registro ${editingJob.job_id}` : "Registrar trabajo"}</div>
         <div className="jf-rate">Bay rate: {fmt$(bayRate)}/bay</div>
       </div>
 

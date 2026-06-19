@@ -30,6 +30,33 @@ function groupByBlock(rowMap, rowToBlock) {
     if (!groups[blockId]) groups[blockId] = [];
     groups[blockId].push(rowId);
   }
+  // Ordenar rows dentro del block con prioridades personalizadas
+  for (const blockId of Object.keys(groups)) {
+    groups[blockId].sort((a, b) => {
+      const getSortInfo = (rowId) => {
+        if (/SKIRT$/i.test(rowId)) {
+          return { category: 1, num: 0 };
+        }
+        if (/SKIRT-\d+$/i.test(rowId)) {
+          const match = rowId.match(/\d+$/);
+          return { category: 3, num: match ? parseInt(match[0], 10) : 0 };
+        }
+        const match = rowId.match(/\d+$/);
+        return { category: 2, num: match ? parseInt(match[0], 10) : 0 };
+      };
+
+      const infoA = getSortInfo(a);
+      const infoB = getSortInfo(b);
+
+      if (infoA.category !== infoB.category) {
+        return infoA.category - infoB.category;
+      }
+      if (infoA.num !== infoB.num) {
+        return infoA.num - infoB.num;
+      }
+      return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
+    });
+  }
   return groups;
 }
 
@@ -58,6 +85,7 @@ export default function RowSelector({
   date = "",
   value = [],
   onChange,
+  preloaded: customPreloaded,
 }) {
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("bay"); // "bay" | "row"
@@ -68,12 +96,16 @@ export default function RowSelector({
   const [preloaded, setPreloaded] = useState({});
 
   useEffect(() => {
+    if (customPreloaded) {
+      setPreloaded(customPreloaded);
+      return;
+    }
     if (!orchardId || !date) return;
     try {
       const raw = localStorage.getItem(STORAGE_KEY(orchardId, date));
       setPreloaded(raw ? JSON.parse(raw) : {});
     } catch { setPreloaded({}); }
-  }, [orchardId, date]);
+  }, [orchardId, date, customPreloaded]);
 
   // Cerrar con Escape
   useEffect(() => {

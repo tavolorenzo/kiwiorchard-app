@@ -21,6 +21,12 @@ service cloud.firestore {
       allow read:  if isAuth();
       allow write: if isAdmin();
 
+      // Permitir acceso admin a todas las subcolecciones (necesario para copyOrchard)
+      match /{allSub=**} {
+        allow read:  if isAuth();
+        allow write: if isAdmin();
+      }
+
       // MAP — todos leen, solo admin escribe
       match /map/{rowId} {
         allow read:  if isAuth();

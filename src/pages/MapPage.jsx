@@ -11,7 +11,6 @@ import { useFirestore } from "../hooks/useFirestore";
 import { fetchTasks } from "../lib/firebase";
 import OrchardMap from "../components/OrchardMap";
 import BayPanel from "../components/BayPanel";
-import { ORCHARDS } from "../components/Layout";
 import { useLocation } from "react-router-dom";
 
 export default function MapPage() {
@@ -25,7 +24,7 @@ export default function MapPage() {
     const [mapLoading, setMapLoading] = useState(true);
     const [selectedBay, setSelectedBay] = useState(null); // { row_id, bay_number }
 
-    const orchard = ORCHARDS.find(o => o.id === orchardId);
+    const orchard = config?.orchards?.find(o => o.orchard_id === orchardId);
 
     useEffect(() => {
         if (location.state?.selectedBay) {
@@ -97,7 +96,6 @@ export default function MapPage() {
                     position: "sticky",
                     top: 49,
                     height: "calc(100vh - 49px)",
-                    overflowY: "hidden",
                 }}>
                     <BayPanel
                         orchardId={orchardId}

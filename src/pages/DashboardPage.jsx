@@ -10,7 +10,6 @@ import {
 } from "recharts";
 import { useFirestore } from "../hooks/useFirestore";
 import { useJobs }   from "../lib/useJobs";
-import { ORCHARDS }  from "../components/Layout";
 import JobForm from "../components/JobForm";
 
 const COLORS = {
@@ -38,7 +37,7 @@ export default function DashboardPage() {
   const [rowToBlock, setRowToBlock] = useState({});
   const [editingJob, setEditingJob] = useState(null);
 
-  const orchard  = ORCHARDS.find(o => o.id === orchardId);
+  const orchard  = config?.orchards?.find(o => o.orchard_id === orchardId);
   const bayRate  = config ? getBayRate(orchardId) : 0;
 
   const teams = config

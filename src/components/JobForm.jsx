@@ -42,9 +42,10 @@ export default function JobForm({
   editingJob = null,
   jobs       = [],
 }) {
+  const [isEdit] = useState(!!editingJob);
   // Helper to compute initial preloaded map for state initialization
   const initialPreloaded = useMemo(() => {
-    if (!orchardId || !editingJob || !jobs.length) return {};
+    if (!orchardId || !isEdit || !jobs.length) return {};
     const map = {};
     jobs.forEach(j => {
       if (j.date === editingJob.date && j.job_id !== editingJob.job_id) {
@@ -58,7 +59,7 @@ export default function JobForm({
   }, [orchardId, editingJob, jobs]);
 
   const [form, setForm] = useState(() => {
-    if (editingJob) {
+    if (isEdit) {
       return {
         date: editingJob.date,
         teamId: editingJob.team_id,
@@ -70,7 +71,7 @@ export default function JobForm({
   });
 
   const [rowSel, setRowSel] = useState(() => {
-    if (editingJob) {
+    if (isEdit) {
       const editingDeltas = deserializeRows(editingJob.rows_json);
       return editingDeltas.map(({ row_id, bays }) => {
         const floor = initialPreloaded[row_id] ?? 0;
@@ -173,7 +174,7 @@ export default function JobForm({
       console.debug("[JobForm] rows_json value:", payload.rows_json);
       
       let result;
-      if (editingJob) {
+      if (isEdit) {
         result = await updateJob(orchardId, editingJob.job_id, payload);
       } else {
         result = await appendJob(payload);
@@ -182,7 +183,7 @@ export default function JobForm({
       setStatus("success");
       setForm(EMPTY_FORM);
       setRowSel([]);
-      onSuccess?.({ ...payload, job_id: editingJob ? editingJob.job_id : result.job_id });
+      onSuccess?.({ ...payload, job_id: isEdit ? editingJob.job_id : result.job_id });
       setTimeout(() => setStatus("idle"), 3000);
     } catch (err) {
       setStatus("error");
@@ -203,7 +204,7 @@ export default function JobForm({
 
       <div className="jf-header">
         <div className="jf-orchard">{orchardName}</div>
-        <div className="jf-title">{editingJob ? `Editar registro ${editingJob.job_id}` : "Registrar trabajo"}</div>
+        <div className="jf-title">{isEdit ? `Editar registro ${editingJob.job_id}` : "Registrar trabajo"}</div>
         <div className="jf-rate">Bay rate: {fmt$(bayRate)}/bay</div>
       </div>
 
@@ -276,6 +277,7 @@ export default function JobForm({
             date={form.date}
             value={rowSel}
             onChange={setRowSel}
+            preloaded={isEdit ? {} : preloaded}
           />
           {errors.rows && <p className="jf-error">{errors.rows}</p>}
         </div>

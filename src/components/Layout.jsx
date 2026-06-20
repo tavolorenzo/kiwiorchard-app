@@ -4,17 +4,7 @@ import { LayoutDashboard, ClipboardList, BarChart3, Map, CheckSquare, Menu, X, S
 import { useFirestore } from "../hooks/useFirestore";
 import { useAuth } from "../hooks/useAuth";
 
-const ORCHARDS = [
-  { id: "cas", name: "Casuarina" },
-  { id: "bro", name: "Brown Rabbit" },
-  { id: "gra", name: "Grasshopper" },
-  { id: "jam", name: "JAM" },
-  { id: "mar", name: "Marshall" },
-  { id: "oce", name: "Oceanview" },
-  { id: "web", name: "Webb" },
-  { id: "whi", name: "White House" },
-];
-
+const ORCHARDS = []; // Fallback deprecado
 export { ORCHARDS };
 
 export default function Layout() {
@@ -27,10 +17,14 @@ export default function Layout() {
   const { getBayRate, config } = useFirestore();
   const { user, admin, logout } = useAuth();
 
+  const orchards = config
+    ? config.orchards.map(o => ({ id: o.orchard_id, name: o.name }))
+    : [];
+
   // El orchard activo viene de la URL. Si no hay orchardId (ej: /all-orchards)
   // buscamos cuál coincide con el pathname para mantener el highlight correcto.
   const activeOrchardId = orchardId
-    ?? ORCHARDS.find(o => location.pathname.includes(o.id))?.id
+    ?? orchards.find(o => location.pathname.includes(o.id))?.id
     ?? null;
 
   const isAllOrchards = location.pathname.includes("all-orchards");
@@ -119,7 +113,7 @@ export default function Layout() {
         {/* Lista de orchards */}
         <div style={{ padding: "4px 0", flex: 1 }}>
           <SectionTitle>Orchards</SectionTitle>
-          {ORCHARDS.map(o => {
+          {orchards.map(o => {
             const isActive = activeOrchardId === o.id;
             return (
               <div key={o.id}>
@@ -188,6 +182,12 @@ export default function Layout() {
                       icon={<CheckSquare size={12} />}
                       label="Tasks"
                       to={`/tasks/${o.id}`}
+                      onClick={() => setOpen(false)}
+                    />
+                    <SubNavItem
+                      icon={<Settings size={12} />}
+                      label="Orchard Settings"
+                      to={`/orchard-settings/${o.id}`}
                       onClick={() => setOpen(false)}
                     />
                   </div>

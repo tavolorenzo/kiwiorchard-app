@@ -4,7 +4,9 @@
  * Muestra el rol del usuario (admin vs usuario normal).
  */
 
+import { useState } from "react";
 import { useAuth } from "../hooks/useAuth";
+import { copyOrchard } from "../lib/firebase";
 
 export default function AuthGuard({ children }) {
   const { user, loading, admin, login } = useAuth();
@@ -107,5 +109,166 @@ export default function AuthGuard({ children }) {
     );
   }
 
-  return children;
+  return (
+    <>
+      {children}
+      {admin && <AdminTestConsole />}
+    </>
+  );
+}
+
+function AdminTestConsole() {
+  const [open, setOpen] = useState(false);
+  const [srcId, setSrcId] = useState("");
+  const [destId, setDestId] = useState("");
+  const [status, setStatus] = useState("idle"); // idle | copying | success | error
+  const [errorMsg, setErrorMsg] = useState("");
+
+  const handleCopy = async () => {
+    if (!srcId.trim() || !destId.trim()) {
+      setErrorMsg("Completa ambos IDs");
+      setStatus("error");
+      return;
+    }
+    setStatus("copying");
+    setErrorMsg("");
+    try {
+      await copyOrchard(srcId.trim(), destId.trim());
+      setStatus("success");
+      setSrcId("");
+      setDestId("");
+      setTimeout(() => setStatus("idle"), 5000);
+    } catch (e) {
+      setErrorMsg(e.message);
+      setStatus("error");
+    }
+  };
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        style={{
+          position: "fixed",
+          bottom: 16,
+          right: 16,
+          zIndex: 99999,
+          background: "#1e293b",
+          color: "#fff",
+          border: "none",
+          borderRadius: 30,
+          padding: "8px 16px",
+          fontSize: 12,
+          fontWeight: 600,
+          cursor: "pointer",
+          boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+        }}
+      >
+        ⚙️ Admin Test Panel
+      </button>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        bottom: 16,
+        right: 16,
+        zIndex: 99999,
+        background: "#fff",
+        border: "1px solid #cbd5e1",
+        borderRadius: 12,
+        width: 280,
+        boxShadow: "0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)",
+        padding: 16,
+        fontFamily: "system-ui, sans-serif",
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <span style={{ fontSize: 13, fontWeight: 600, color: "#0f172a" }}>⚙️ Admin Test Console</span>
+        <button
+          onClick={() => setOpen(false)}
+          style={{ background: "none", border: "none", cursor: "pointer", color: "#64748b", fontSize: 14 }}
+        >
+          ✕
+        </button>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <div>
+          <label style={{ fontSize: 11, fontWeight: 500, color: "#64748b", display: "block", marginBottom: 3 }}>
+            Orchard de origen ID
+          </label>
+          <input
+            placeholder="cas"
+            value={srcId}
+            onChange={e => setSrcId(e.target.value)}
+            style={{
+              width: "100%",
+              fontSize: 12,
+              padding: "6px 8px",
+              border: "1px solid #cbd5e1",
+              borderRadius: 6,
+              outline: "none",
+              boxSizing: "border-box"
+            }}
+          />
+        </div>
+
+        <div>
+          <label style={{ fontSize: 11, fontWeight: 500, color: "#64748b", display: "block", marginBottom: 3 }}>
+            Nuevo Orchard ID
+          </label>
+          <input
+            placeholder="cas-copia"
+            value={destId}
+            onChange={e => setDestId(e.target.value)}
+            style={{
+              width: "100%",
+              fontSize: 12,
+              padding: "6px 8px",
+              border: "1px solid #cbd5e1",
+              borderRadius: 6,
+              outline: "none",
+              boxSizing: "border-box"
+            }}
+          />
+        </div>
+
+        <button
+          onClick={handleCopy}
+          disabled={status === "copying"}
+          style={{
+            background: status === "copying" ? "#94a3b8" : "#1d4ed8",
+            color: "#fff",
+            border: "none",
+            borderRadius: 6,
+            padding: "8px 12px",
+            fontSize: 12,
+            fontWeight: 500,
+            cursor: status === "copying" ? "not-allowed" : "pointer",
+            marginTop: 4,
+            textAlign: "center",
+          }}
+        >
+          {status === "copying" ? "Copiando..." : "Copiar Orchard"}
+        </button>
+
+        {status === "success" && (
+          <div style={{ fontSize: 11, color: "#15803d", fontWeight: 500, marginTop: 4 }}>
+            ✓ Orchard copiado correctamente.
+          </div>
+        )}
+        {status === "error" && (
+          <div style={{ fontSize: 11, color: "#b91c1c", fontWeight: 500, marginTop: 4, wordBreak: "break-word" }}>
+            ✗ {errorMsg}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }

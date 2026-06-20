@@ -7,7 +7,6 @@ import { useParams } from "react-router-dom";
 import { useFirestore } from "../hooks/useFirestore";
 import { useJobs }    from "../lib/useJobs";
 import JobForm        from "../components/JobForm";
-import { ORCHARDS }   from "../components/Layout";
 
 export default function RegisterPage() {
   const { orchardId }  = useParams();
@@ -19,7 +18,7 @@ export default function RegisterPage() {
   const [rowToBlock, setRowToBlock] = useState({});
   const [mapLoading, setMapLoading] = useState(false);
 
-  const activeOrchard = ORCHARDS.find(o => o.id === orchardId);
+  const activeOrchard = config?.orchards?.find(o => o.orchard_id === orchardId);
   const bayRate = config ? getBayRate(orchardId) : 0;
   const teams = config
     ? config.teams.filter(t => t.active !== false).map(t => ({

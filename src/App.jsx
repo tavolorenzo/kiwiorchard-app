@@ -7,6 +7,7 @@ import AllOrchardsPage from "./pages/AllOrchardsPage";
 import SettingsPage from "./pages/SettingsPage";
 import TaskDashboardPage from "./pages/TaskDashboardPage";
 import MapPage from "./pages/MapPage";
+import OrchardSettingsPage from "./pages/OrchardSettingsPage";
 
 export default function App() {
   return (
@@ -21,6 +22,7 @@ export default function App() {
             <Route path="tasks/:orchardId" element={<TaskDashboardPage />} />
             <Route path="settings" element={<SettingsPage />} />
             <Route path="map/:orchardId" element={<MapPage />} />
+            <Route path="orchard-settings/:orchardId" element={<OrchardSettingsPage />} />
           </Route>
         </Routes>
       </AuthGuard>

@@ -9,7 +9,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { fetchTasks } from "../lib/firebase";
-import { ORCHARDS } from "../components/Layout";
+import { useFirestore } from "../hooks/useFirestore";
 
 // ── Constantes ────────────────────────────────────────────────
 
@@ -46,6 +46,7 @@ const STATUS_STYLES = {
 export default function TaskDashboard() {
   const { orchardId } = useParams();
   const navigate = useNavigate();
+  const { config } = useFirestore();
 
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -54,7 +55,7 @@ export default function TaskDashboard() {
   const [filterStatus, setFilterStatus] = useState("all");
   const [sortBy, setSortBy] = useState("created_at"); // created_at | type | status
 
-  const orchard = ORCHARDS.find(o => o.id === orchardId);
+  const orchard = config?.orchards?.find(o => o.orchard_id === orchardId);
 
   useEffect(() => {
     if (!orchardId) return;

@@ -10,7 +10,6 @@ import {
 } from "recharts";
 import { fetchJobs } from "../lib/firebase";
 import { useFirestore } from "../hooks/useFirestore";
-import { ORCHARDS }  from "../components/Layout";
 
 const BAR_COLORS = [
   "#2563eb","#7c3aed","#059669","#d97706",
@@ -31,9 +30,11 @@ export default function AllOrchardsPage() {
   const [sortBy,  setSortBy]  = useState("totalBays");
 
   useEffect(() => {
+    if (!config) return;
     async function fetchAll() {
+      const orchards = config.orchards.map(o => ({ id: o.orchard_id, name: o.name }));
       const results = await Promise.all(
-        ORCHARDS.map(async (o) => {
+        orchards.map(async (o) => {
           try {
             const rows = await fetchJobs(o.id);
             const totalBays  = rows.reduce((s, r) => s + Number(r.total_bays ?? 0), 0);
@@ -52,7 +53,7 @@ export default function AllOrchardsPage() {
       setLoading(false);
     }
     fetchAll();
-  }, []);
+  }, [config]);
 
   const sorted = [...data].sort((a, b) => b[sortBy] - a[sortBy]);
   const maxBays = Math.max(...data.map(d => d.totalBays), 1);

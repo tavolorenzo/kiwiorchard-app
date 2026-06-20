@@ -13,8 +13,8 @@ import {
 
 // Cache en módulo
 const cache = {
-  config:    null,         // { orchards, workers, teams, teamMembers }
-  orchards:  {},           // { orchardId: { rowMap, blockMap, rowToBlock } }
+  config: null,         // { orchards, workers, teams, teamMembers }
+  orchards: {},           // { orchardId: { rowMap, blockMap, rowToBlock } }
 };
 
 // ── Builders (misma lógica que sheets.js, ahora desde Firestore) ──
@@ -22,14 +22,14 @@ const cache = {
 function buildRowMap(mapDocs) {
   return Object.fromEntries(
     mapDocs.filter(r => r.row_id)
-           .map(r => [r.row_id, Number(r.total_bays)])
+      .map(r => [r.row_id, Number(r.total_bays)])
   );
 }
 
 function buildBlockMap(blockDocs) {
   return Object.fromEntries(
     blockDocs.filter(b => b.block_id)
-             .map(b => [b.block_id, Number(b.prom_m2_per_bay)])
+      .map(b => [b.block_id, Number(b.prom_m2_per_bay)])
   );
 }
 
@@ -38,7 +38,7 @@ function buildRowToBlock(mapDocs, blockDocs) {
   const shortToFull = {};
   for (const b of blockDocs) {
     if (!b.block_id) continue;
-    const parts  = String(b.block_id).split("-");
+    const parts = String(b.block_id).split("-");
     const suffix = parts[parts.length - 1];
     shortToFull[suffix] = b.block_id;
     if (b.label) {
@@ -60,8 +60,8 @@ function buildRowToBlock(mapDocs, blockDocs) {
 
 export function useFirestore() {
   const [loading, setLoading] = useState(!cache.config);
-  const [error,   setError]   = useState(null);
-  const [config,  setConfig]  = useState(cache.config);
+  const [error, setError] = useState(null);
+  const [config, setConfig] = useState(cache.config);
 
   useEffect(() => {
     if (cache.config) return;
@@ -99,8 +99,8 @@ export function useFirestore() {
     ]);
 
     const maps = {
-      rowMap:     buildRowMap(mapDocs),
-      blockMap:   buildBlockMap(blockDocs),
+      rowMap: buildRowMap(mapDocs),
+      blockMap: buildBlockMap(blockDocs),
       rowToBlock: buildRowToBlock(mapDocs, blockDocs),
     };
 

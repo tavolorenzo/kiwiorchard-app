@@ -14,7 +14,8 @@ import {
     getFirestore, doc, getDoc,
     getDocs, collection, addDoc,
     setDoc, updateDoc, deleteDoc,
-    query, where, orderBy, serverTimestamp
+    query, where, orderBy, serverTimestamp,
+    writeBatch
 } from "firebase/firestore";
 
 // ── Inicialización ────────────────────────────────────────────
@@ -239,4 +240,54 @@ export async function updateTask(orchardId, taskId, updates) {
 /** Elimina una task (solo admin — enforced por Firestore rules) */
 export async function deleteTask(orchardId, taskId) {
     await deleteDoc(doc(db, `orchards/${orchardId}/tasks/${taskId}`));
+}
+
+/** Actualiza un orchard */
+export async function updateOrchard(orchardId, updates) {
+    await updateDoc(doc(db, `orchards/${orchardId}`), updates);
+}
+
+/** Copia un orchard completo con todas sus subcolecciones */
+export async function copyOrchard(orchardId, newOrchardId) {
+  const originalRef = doc(db, `orchards/${orchardId}`);
+  const newRef = doc(db, `orchards/${newOrchardId}`);
+
+  // 1. Copiar el documento principal
+  const snap = await getDoc(originalRef);
+  if (!snap.exists()) {
+    throw new Error("El orchard original no existe");
+  }
+  const originalData = snap.data();
+  await setDoc(newRef, {
+    ...originalData,
+    orchard_id: newOrchardId,
+    name: `${originalData.name ?? orchardId} (Copy)`,
+  });
+
+  // 2. Obtener y copiar todas las subcolecciones
+  const subcollections = [
+    "map",
+    "blocks",
+    "jobs",
+    "tasks",
+    "workers",
+    "teams",
+    "team_members",
+  ];
+
+  for (const sub of subcollections) {
+    const colRef = collection(originalRef, sub);
+    const snapCol = await getDocs(colRef);
+
+    if (snapCol.size > 0) {
+      const batch = writeBatch(db);
+      snapCol.forEach(docSnap => {
+        const newSubRef = doc(newRef, sub, docSnap.id);
+        batch.set(newSubRef, docSnap.data());
+      });
+      await batch.commit();
+    }
+  }
+
+  return true;
 }

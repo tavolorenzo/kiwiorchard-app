@@ -1,6 +1,5 @@
 /**
  * useFirestore.js
- * Reemplaza useSheets.js.
  * Carga CONFIG y mapas de orchard desde Firestore.
  * Cache en módulo — segunda llamada es instantánea.
  */
@@ -14,10 +13,11 @@ import {
 // Cache en módulo
 const cache = {
   config: null,         // { orchards, workers, teams, teamMembers }
-  orchards: {},           // { orchardId: { rowMap, blockMap, rowToBlock } }
+  orchards: {},
+  version: 0,
 };
 
-// ── Builders (misma lógica que sheets.js, ahora desde Firestore) ──
+// ── Builders ──
 
 function buildRowMap(mapDocs) {
   return Object.fromEntries(
@@ -62,6 +62,7 @@ export function useFirestore() {
   const [loading, setLoading] = useState(!cache.config);
   const [error, setError] = useState(null);
   const [config, setConfig] = useState(cache.config);
+  const [cacheVersion, setCacheVersion] = useState(0);
 
   useEffect(() => {
     if (cache.config) return;
@@ -84,7 +85,7 @@ export function useFirestore() {
       }
     }
     load();
-  }, []);
+  }, [cacheVersion]);
 
   /**
    * Carga MAP + BLOCKS de un orchard y devuelve los tres mapas.
@@ -126,6 +127,8 @@ export function useFirestore() {
   const invalidateConfig = useCallback(() => {
     cache.config = null;
     setConfig(null);
+    cache.version += 1;
+    setCacheVersion(cacheVersion + 1);
     setLoading(true);
   }, []);
 

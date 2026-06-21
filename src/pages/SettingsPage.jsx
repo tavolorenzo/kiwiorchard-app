@@ -73,6 +73,8 @@ export default function SettingsPage() {
 
 function WorkersSection() {
   const [workers, setWorkers] = useState([]);
+  const [teams, setTeams] = useState([]);
+  const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -86,9 +88,14 @@ function WorkersSection() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetchWorkers();
-      if (!res) return;
-      setWorkers(Array.isArray(res) ? res : (res.data ?? []));
+      const [workersRaw, teamsRaw, membersRaw] = await Promise.all([
+        fetchWorkers(),
+        fetchTeams(),
+        fetchTeamMembers(),
+      ]);
+      setWorkers(Array.isArray(workersRaw) ? workersRaw : (workersRaw.data ?? []));
+      setTeams(Array.isArray(teamsRaw) ? teamsRaw : (teamsRaw.data ?? []));
+      setMembers(Array.isArray(membersRaw) ? membersRaw : (membersRaw.data ?? []));
     } catch (e) {
       setError(e.message);
     } finally {
@@ -97,6 +104,85 @@ function WorkersSection() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  function WorkerTableHeader() {
+    return (
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "1fr 100px 120px 120px 80px 120px", // ← agregar 120px
+        gap: 8, padding: "8px 12px",
+        background: "#f9fafb",
+        border: "1px solid #e5e7eb",
+        borderRadius: "8px 8px 0 0",
+        fontSize: 11, fontWeight: 500, color: "#6b7280",
+        textTransform: "uppercase", letterSpacing: ".05em",
+      }}>
+        <span>Nombre</span>
+        <span>Tipo</span>
+        <span>Tarifa/hr</span>
+        <span>Teams</span>         {/* ← AGREGAR */}
+        <span>Estado</span>
+        <span></span>
+      </div>
+    );
+  }
+
+  function WorkerRow({ worker: w, workerTeams, onEdit, onToggle }) {
+    const isActive = w.active !== false && w.active !== "FALSE";
+    return (
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "1fr 100px 120px 120px 80px 120px", // ← agregar 120px
+        gap: 8, padding: "10px 12px",
+        background: "#fff",
+        border: "1px solid #e5e7eb",
+        borderTop: "none",
+        alignItems: "center",
+        fontSize: 13,
+        opacity: isActive ? 1 : 0.55,
+      }}>
+        <span style={{ fontWeight: 500, color: "#111827" }}>{w.name}</span>
+        <span>
+          <Badge label={w.type}
+            color={w.type === "RSE" ? "#2563eb" : "#7c3aed"} />
+        </span>
+        <span style={{ color: "#374151", fontFamily: "monospace", fontSize: 12 }}>
+          ${Number(w.rate_per_hr).toFixed(2)}/hr
+        </span>
+
+        {/* Teams del worker */}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+          {workerTeams.length === 0 ? (
+            <span style={{ fontSize: 10, color: "#d1d5db" }}>—</span>
+          ) : (
+            workerTeams.map(t => (
+              <span key={t.team_id} style={{
+                fontSize: 10, padding: "2px 7px",
+                borderRadius: 10, fontWeight: 500,
+                background: "#eff6ff", color: "#1d4ed8",
+                border: "1px solid #bfdbfe",
+              }}>
+                {t.name}
+              </span>
+            ))
+          )}
+        </div>
+
+        <span>
+          <Badge
+            label={isActive ? "Activo" : "Inactivo"}
+            color={isActive ? "#16a34a" : "#6b7280"}
+          />
+        </span>
+        <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+          <button onClick={onEdit} style={btnXS}>Editar</button>
+          <button onClick={onToggle} style={btnXS}>
+            {isActive ? "Desactivar" : "Activar"}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   function openCreate() {
     setForm(EMPTY);
@@ -239,19 +325,28 @@ function WorkersSection() {
           {workers.length === 0 && (
             <div style={{
               padding: "24px 0", textAlign: "center",
-              color: "#9ca3af", fontSize: 13
+              color: "#9ca3af", fontSize: 13,
             }}>
               No hay workers. Agregá uno con el botón de arriba.
             </div>
           )}
-          {workers.map(w => (
-            <WorkerRow
-              key={w.worker_id}
-              worker={w}
-              onEdit={() => openEdit(w)}
-              onToggle={() => handleToggle(w)}
-            />
-          ))}
+          {workers.map(w => {
+            // Teams a los que pertenece este worker
+            const workerTeamIds = members
+              .filter(m => m.worker_id === w.worker_id)
+              .map(m => m.team_id);
+            const workerTeams = teams.filter(t => workerTeamIds.includes(t.team_id));
+
+            return (
+              <WorkerRow
+                key={w.worker_id}
+                worker={w}
+                workerTeams={workerTeams}         // ← AGREGAR
+                onEdit={() => openEdit(w)}
+                onToggle={() => handleToggle(w)}
+              />
+            );
+          })}
         </div>
       )}
     </div>
@@ -339,9 +434,24 @@ function TeamsSection() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [tr, wr, mr] = await Promise.all([fetchTeams(), fetchWorkers(), fetchTeamMembers()]);
-      setTeams(Array.isArray(tr) ? tr : (tr.data ?? []));
-      setWorkers(Array.isArray(wr) ? wr : (wr.data ?? []));
+      const [teamsRaw, workersRaw, membersRaw] = await Promise.all([
+        fetchTeams(),
+        fetchWorkers(),
+        fetchTeamMembers(),
+      ]);
+
+      const teamsArr = Array.isArray(teamsRaw) ? teamsRaw : (teamsRaw.data ?? []);
+      const workersArr = Array.isArray(workersRaw) ? workersRaw : (workersRaw.data ?? []);
+      const membersArr = Array.isArray(membersRaw) ? membersRaw : (membersRaw.data ?? []);
+
+      // Inyectar members en cada team
+      const teamsWithMembers = teamsArr.map(t => ({
+        ...t,
+        members: membersArr.filter(m => m.team_id === t.team_id),
+      }));
+
+      setTeams(teamsWithMembers);
+      setWorkers(workersArr);
     } catch (e) {
       setError(e.message);
     } finally {

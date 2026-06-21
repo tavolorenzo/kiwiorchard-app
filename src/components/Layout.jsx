@@ -4,9 +4,6 @@ import { LayoutDashboard, ClipboardList, BarChart3, Map, CheckSquare, Menu, X, S
 import { useFirestore } from "../hooks/useFirestore";
 import { useAuth } from "../hooks/useAuth";
 
-const ORCHARDS = []; // Fallback deprecado
-export { ORCHARDS };
-
 export default function Layout() {
 
   const [open, setOpen] = useState(false);

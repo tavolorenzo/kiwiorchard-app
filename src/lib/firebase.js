@@ -150,7 +150,7 @@ export async function deleteJob(orchardId, jobId) {
 }
 
 
-// ── CONFIG — escritura (admin only) ──────────────────────────
+// ── WORKERS?TEAMS CRUD ──────────────────────────
 
 /** Crea o actualiza un worker */
 export async function saveWorker(workerData) {
@@ -189,20 +189,30 @@ export async function toggleTeam(team_id, active) {
  * Borra los existentes e inserta los nuevos.
  */
 export async function saveTeamMembers(team_id, members) {
-    // Borrar miembros actuales del team
+    // Borrar miembros actuales del team via query
     const existing = await getDocs(
-        query(collection(db, "config/team_members/items"),
-            where("team_id", "==", team_id))
-    );
-    await Promise.all(existing.docs.map(d => deleteDoc(d.ref)));
-
-    // Insertar nuevos
-    await Promise.all(members.map((m, i) =>
-        setDoc(
-            doc(db, `config/team_members/items/tm-${team_id}-${String(i).padStart(3, "0")}`),
-            { team_id, worker_id: m.worker_id, worker_name: m.worker_name }
+        query(
+            collection(db, "config/team_members/items"),
+            where("team_id", "==", team_id)
         )
-    ));
+    );
+    const batch = writeBatch(db);
+    existing.docs.forEach(d => batch.delete(d.ref));
+
+    // Insertar nuevos con ID canónico
+    members.forEach((m, i) => {
+        const ref = doc(
+            db,
+            `config/team_members/items/tm-${team_id}-${String(i).padStart(3, "0")}`
+        );
+        batch.set(ref, {
+            team_id,
+            worker_id: m.worker_id,
+            worker_name: m.worker_name,
+        });
+    });
+
+    await batch.commit();
 }
 
 
@@ -242,6 +252,8 @@ export async function deleteTask(orchardId, taskId) {
     await deleteDoc(doc(db, `orchards/${orchardId}/tasks/${taskId}`));
 }
 
+// -- ORCHARD CRUD --
+
 /** Actualiza un orchard */
 export async function updateOrchard(orchardId, updates) {
     await updateDoc(doc(db, `orchards/${orchardId}`), updates);
@@ -249,45 +261,45 @@ export async function updateOrchard(orchardId, updates) {
 
 /** Copia un orchard completo con todas sus subcolecciones */
 export async function copyOrchard(orchardId, newOrchardId) {
-  const originalRef = doc(db, `orchards/${orchardId}`);
-  const newRef = doc(db, `orchards/${newOrchardId}`);
+    const originalRef = doc(db, `orchards/${orchardId}`);
+    const newRef = doc(db, `orchards/${newOrchardId}`);
 
-  // 1. Copiar el documento principal
-  const snap = await getDoc(originalRef);
-  if (!snap.exists()) {
-    throw new Error("El orchard original no existe");
-  }
-  const originalData = snap.data();
-  await setDoc(newRef, {
-    ...originalData,
-    orchard_id: newOrchardId,
-    name: `${originalData.name ?? orchardId} (Copy)`,
-  });
-
-  // 2. Obtener y copiar todas las subcolecciones
-  const subcollections = [
-    "map",
-    "blocks",
-    "jobs",
-    "tasks",
-    "workers",
-    "teams",
-    "team_members",
-  ];
-
-  for (const sub of subcollections) {
-    const colRef = collection(originalRef, sub);
-    const snapCol = await getDocs(colRef);
-
-    if (snapCol.size > 0) {
-      const batch = writeBatch(db);
-      snapCol.forEach(docSnap => {
-        const newSubRef = doc(newRef, sub, docSnap.id);
-        batch.set(newSubRef, docSnap.data());
-      });
-      await batch.commit();
+    // 1. Copiar el documento principal
+    const snap = await getDoc(originalRef);
+    if (!snap.exists()) {
+        throw new Error("El orchard original no existe");
     }
-  }
+    const originalData = snap.data();
+    await setDoc(newRef, {
+        ...originalData,
+        orchard_id: newOrchardId,
+        name: `${originalData.name ?? orchardId} (Copy)`,
+    });
 
-  return true;
+    // 2. Obtener y copiar todas las subcolecciones
+    const subcollections = [
+        "map",
+        "blocks",
+        "jobs",
+        "tasks",
+        "workers",
+        "teams",
+        "team_members",
+    ];
+
+    for (const sub of subcollections) {
+        const colRef = collection(originalRef, sub);
+        const snapCol = await getDocs(colRef);
+
+        if (snapCol.size > 0) {
+            const batch = writeBatch(db);
+            snapCol.forEach(docSnap => {
+                const newSubRef = doc(newRef, sub, docSnap.id);
+                batch.set(newSubRef, docSnap.data());
+            });
+            await batch.commit();
+        }
+    }
+
+    return true;
 }

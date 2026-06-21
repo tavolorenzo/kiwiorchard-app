@@ -4,7 +4,7 @@ import Layout from "./components/Layout";
 import RegisterPage from "./pages/RegisterPage";
 import DashboardPage from "./pages/DashboardPage";
 import AllOrchardsPage from "./pages/AllOrchardsPage";
-import SettingsPage from "./pages/SettingsPage";
+import WorkersPage from "./pages/WorkersPage";
 import TaskDashboardPage from "./pages/TaskDashboardPage";
 import MapPage from "./pages/MapPage";
 import OrchardSettingsPage from "./pages/OrchardSettingsPage";
@@ -20,7 +20,7 @@ export default function App() {
             <Route path="dashboard/:orchardId" element={<DashboardPage />} />
             <Route path="all-orchards" element={<AllOrchardsPage />} />
             <Route path="tasks/:orchardId" element={<TaskDashboardPage />} />
-            <Route path="settings" element={<SettingsPage />} />
+            <Route path="workers" element={<WorkersPage />} />
             <Route path="map/:orchardId" element={<MapPage />} />
             <Route path="orchard-settings/:orchardId" element={<OrchardSettingsPage />} />
           </Route>

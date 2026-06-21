@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Outlet, NavLink, useNavigate, useParams, useLocation } from "react-router-dom";
-import { LayoutDashboard, ClipboardList, BarChart3, Map, CheckSquare, Menu, X, Settings } from "lucide-react";
+import { LayoutDashboard, ClipboardList, BarChart3, Map, CheckSquare, Menu, X, Settings, User } from "lucide-react";
 import { useFirestore } from "../hooks/useFirestore";
 import { useAuth } from "../hooks/useAuth";
 
@@ -100,10 +100,10 @@ export default function Layout() {
             onClick={() => goTo("/all-orchards")}
           />
           <SideNavItem
-            icon={<Settings size={14} />}
-            label="Configuración"
-            active={location.pathname.includes("settings")}
-            onClick={() => goTo("/settings")}
+            icon={<User size={14} />}
+            label="Workers / Teams"
+            active={location.pathname.includes("workers")}
+            onClick={() => goTo("/workers")}
           />
         </div>
 

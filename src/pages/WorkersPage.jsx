@@ -1,9 +1,9 @@
 /**
- * SettingsPage.jsx
+ * Workers/TeamsPage.jsx
  * Módulo de gestión de Workers y Teams.
  * CRUD completo sobre el workbook CONFIG via Apps Script.
  *
- * Ruta: /settings
+ * Ruta: /workers
  */
 
 import { useState, useEffect, useCallback } from "react";
@@ -12,7 +12,6 @@ import {
   fetchTeams, saveTeam, toggleTeam, saveTeamMembers,
   fetchTeamMembers,
 } from "../lib/firebase";
-import { useAuth } from "../hooks/useAuth";
 
 // ── Constantes ────────────────────────────────────────────────
 const WORKER_TYPES = ["RSE", "Contractor"];
@@ -21,7 +20,7 @@ const WORKER_TYPES = ["RSE", "Contractor"];
 //  PÁGINA PRINCIPAL
 // ══════════════════════════════════════════════════════════════
 
-export default function SettingsPage() {
+export default function WorkersPage() {
   const [tab, setTab] = useState("workers"); // "workers" | "teams"
 
   return (

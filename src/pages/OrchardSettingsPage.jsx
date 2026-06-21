@@ -106,7 +106,7 @@ export default function OrchardSettingsPage() {
             background: "#fef9c3", border: "1px solid #fde047",
             borderRadius: 6, fontSize: 12, color: "#854d0e",
           }}>
-            Solo el administrador puede editar estos valores.
+            Este cambio debe ser realizado con precaución, solo afectara futuros registros.
           </div>
         )}
 
@@ -135,30 +135,27 @@ export default function OrchardSettingsPage() {
                   padding: "8px 10px 8px 22px",
                   border: `1px solid ${error ? "#dc2626" : "#d1d5db"}`,
                   borderRadius: 6,
-                  background: !admin ? "#f9fafb" : "#fff",
+                  background: "#fff",
                   color: "#111827", outline: "none",
                   boxSizing: "border-box",
                 }}
               />
             </div>
-
-            {admin && (
-              <button
-                onClick={handleSave}
-                disabled={saving || !dirty}
-                style={{
-                  fontSize: 13, fontWeight: 500,
-                  padding: "8px 18px",
-                  border: "1px solid #1e40af", borderRadius: 6,
-                  background: saving || !dirty ? "#93c5fd" : "#1d4ed8",
-                  color: "#fff",
-                  cursor: saving || !dirty ? "not-allowed" : "pointer",
-                  transition: "background .15s",
-                }}
-              >
-                {saving ? "Guardando…" : "Guardar"}
-              </button>
-            )}
+            <button
+              onClick={handleSave}
+              disabled={saving || !dirty}
+              style={{
+                fontSize: 13, fontWeight: 500,
+                padding: "8px 18px",
+                border: "1px solid #1e40af", borderRadius: 6,
+                background: saving || !dirty ? "#93c5fd" : "#1d4ed8",
+                color: "#fff",
+                cursor: saving || !dirty ? "not-allowed" : "pointer",
+                transition: "background .15s",
+              }}
+            >
+              {saving ? "Guardando…" : "Guardar"}
+            </button>
           </div>
 
           {error && (

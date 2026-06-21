@@ -219,11 +219,25 @@ export default function OrchardMap({
                 borderRadius: 10, overflow: "hidden",
             }}>
                 {visibleBlocks.map((blockId, bi) => (
-                    <CollapsibleMapBlock key={blockId} blockId={blockId} bi={bi}>
+                    <div key={blockId}>
+                        {/* Block header */}
+                        <div style={{
+                            padding: "8px 14px",
+                            background: "#f8fafc",
+                            borderBottom: "1px solid #e5e7eb",
+                            borderTop: bi > 0 ? "2px solid #e2e8f0" : undefined,
+                            fontSize: 11, fontWeight: 600,
+                            textTransform: "uppercase", letterSpacing: ".06em",
+                            color: "#64748b",
+                        }}>
+                            Block {blockId}
+                        </div>
+
+                        {/* Rows del block */}
                         {groups[blockId].map(rowId => {
                             const total = rowMap[rowId] ?? 0;
                             const fullBays = Math.floor(total);
-                            const fracBay = total % 1;
+                            const fracBay = total % 1; // fracción (0 si es entero)
 
                             return (
                                 <div key={rowId} style={{
@@ -278,7 +292,7 @@ export default function OrchardMap({
                                             );
                                         })}
 
-                                        {/* Celda fraccionaria */}
+                                        {/* Celda fraccionaria (último bay parcial) */}
                                         {fracBay > 0 && (() => {
                                             const bayNum = fullBays + 1;
                                             const key = `${rowId}:${bayNum}`;
@@ -322,7 +336,7 @@ export default function OrchardMap({
                                 </div>
                             );
                         })}
-                    </CollapsibleMapBlock>
+                    </div>
                 ))}
 
                 {visibleBlocks.length === 0 && (
@@ -339,54 +353,6 @@ export default function OrchardMap({
 }
 
 // ── BayCell ───────────────────────────────────────────────────
-
-// ── CollapsibleMapBlock ───────────────────────────────────────
-
-function CollapsibleMapBlock({ blockId, bi, children }) {
-    const [collapsed, setCollapsed] = useState(true);
-
-    return (
-        <div>
-            {/* Block header clicable */}
-            <button
-                type="button"
-                onClick={() => setCollapsed(p => !p)}
-                style={{
-                    width: "100%",
-                    display: "flex", alignItems: "center",
-                    justifyContent: "space-between",
-                    padding: "8px 14px",
-                    background: "#f8fafc",
-                    border: "none",
-                    borderBottom: collapsed ? "none" : "1px solid #e5e7eb",
-                    borderTop: bi > 0 ? "2px solid #e2e8f0" : "none",
-                    cursor: "pointer",
-                    textAlign: "left",
-                }}
-            >
-                <span style={{
-                    fontSize: 11, fontWeight: 600,
-                    textTransform: "uppercase", letterSpacing: ".06em",
-                    color: "#64748b",
-                }}>
-                    Block {blockId}
-                </span>
-                <span style={{
-                    fontSize: 12, color: "#94a3b8",
-                    transform: collapsed ? "rotate(-90deg)" : "rotate(0deg)",
-                    transition: "transform .2s",
-                    display: "inline-block",
-                    lineHeight: 1,
-                }}>
-                    ▾
-                </span>
-            </button>
-
-            {/* Rows colapsables */}
-            {!collapsed && children}
-        </div>
-    );
-}
 
 function BayCell({
     bayNum, rowId, colors, opacity, isHovered,

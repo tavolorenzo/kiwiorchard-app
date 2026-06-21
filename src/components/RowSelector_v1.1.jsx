@@ -410,9 +410,16 @@ export default function RowSelector({
 
               {/* ══ SELECT BY BAY — sliders ══ */}
               {activeTab === "bay" && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <div>
                   {Object.keys(filteredGroups).sort().map(blockId => (
-                    <CollapsibleBlock key={blockId} blockId={blockId}>
+                    <div key={blockId} style={{ marginBottom: 20 }}>
+                      <div style={{
+                        fontSize: 11, fontWeight: 600,
+                        textTransform: "uppercase", letterSpacing: ".06em",
+                        color: "#6b7280", marginBottom: 8,
+                      }}>
+                        Block {blockId}
+                      </div>
                       {filteredGroups[blockId].map(rowId => {
                         const total = rowMap[rowId] ?? 0;
                         const floor = preloaded[rowId] ?? 0;
@@ -490,7 +497,7 @@ export default function RowSelector({
                           </div>
                         );
                       })}
-                    </CollapsibleBlock>
+                    </div>
                   ))}
                 </div>
               )}
@@ -658,59 +665,6 @@ export default function RowSelector({
               </div>
             </div>
           </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function CollapsibleBlock({ blockId, children }) {
-  const [collapsed, setCollapsed] = useState(true);
-
-  return (
-    <div style={{
-      border: "1px solid #e5e7eb",
-      borderRadius: 8,
-      overflow: "hidden",
-    }}>
-      {/* Header clicable */}
-      <button
-        type="button"
-        onClick={() => setCollapsed(p => !p)}
-        style={{
-          width: "100%",
-          display: "flex", alignItems: "center",
-          justifyContent: "space-between",
-          padding: "8px 12px",
-          background: "#f8fafc",
-          border: "none",
-          borderBottom: collapsed ? "none" : "1px solid #e5e7eb",
-          cursor: "pointer",
-          textAlign: "left",
-        }}
-      >
-        <span style={{
-          fontSize: 11, fontWeight: 600,
-          textTransform: "uppercase", letterSpacing: ".06em",
-          color: "#64748b",
-        }}>
-          Block {blockId}
-        </span>
-        <span style={{
-          fontSize: 12, color: "#94a3b8",
-          transform: collapsed ? "rotate(-90deg)" : "rotate(0deg)",
-          transition: "transform .2s",
-          display: "inline-block",
-          lineHeight: 1,
-        }}>
-          ▾
-        </span>
-      </button>
-
-      {/* Contenido colapsable */}
-      {!collapsed && (
-        <div style={{ padding: "4px 12px 8px" }}>
-          {children}
         </div>
       )}
     </div>

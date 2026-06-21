@@ -129,7 +129,7 @@ export default function OrchardSettingsPage() {
                 step="0.10"
                 value={bayRate}
                 onChange={e => handleBayRateChange(e.target.value)}
-                disabled={!admin || saving}
+                disabled={saving}
                 style={{
                   width: "100%", fontSize: 13,
                   padding: "8px 10px 8px 22px",
